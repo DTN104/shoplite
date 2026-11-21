@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
@@ -31,6 +32,12 @@ afterEach(() => {
 });
 
 describe("<LoginForm />", () => {
+  it("khóa nút Đăng nhập khi render trên server, trước khi hydrate", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(<LoginForm next="/admin" />);
+    expect(host.querySelector('button[type="submit"]')).toBeDisabled();
+  });
+
   it("có input ẩn username và ô mật khẩu đúng autoComplete", () => {
     const { container } = render(<LoginForm next="/admin" />);
     expect(container.querySelector('input[autocomplete="username"]')).toHaveValue("admin");

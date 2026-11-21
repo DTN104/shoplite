@@ -13,6 +13,9 @@ async function visibleText(page: Page, url: string) {
 test("chưa cấu hình thì /admin và /admin/login giống hệt URL không tồn tại", async ({ page }) => {
   const missing = await visibleText(page, "/trang-khong-ton-tai-e2e");
   expect(missing).toContain("Không tìm thấy trang");
+  // 404 phải có khung khách (Header + Footer), không phải trang trống
+  await expect(page.getByRole("link", { name: "ShopLite - Trang chủ" })).toBeVisible();
+  await expect(page.getByRole("contentinfo")).toBeVisible();
 
   for (const url of ["/admin", "/admin/login"]) {
     const text = await visibleText(page, url);

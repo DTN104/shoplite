@@ -15,10 +15,13 @@ if (!password) {
 }
 
 // Build với mật khẩu được đặt, để nếu nó rò vào output thì quét mới bắt được
-const env = { ...process.env, ADMIN_PASSWORD: password };
-delete env.NEXT_DIST_DIR; // script quét `.next`, không phải thư mục build của server E2E
-const build = spawnSync("npx", ["next", "build"], { stdio: "inherit", env });
-if (build.status !== 0) process.exit(build.status ?? 1);
+// `--skip-build`: chỉ kiểm bản build có sẵn (để thử cố tình nhét mật khẩu vào `.next/static`)
+if (!process.argv.includes("--skip-build")) {
+  const env = { ...process.env, ADMIN_PASSWORD: password };
+  delete env.NEXT_DIST_DIR; // script quét `.next`, không phải thư mục build của server E2E
+  const build = spawnSync("npx", ["next", "build"], { stdio: "inherit", env });
+  if (build.status !== 0) process.exit(build.status ?? 1);
+}
 
 // 1. Không route /admin* nào được prerender tĩnh
 const manifest = JSON.parse(readFileSync(path.join(NEXT_DIR, "prerender-manifest.json"), "utf8"));

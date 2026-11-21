@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import type { ApiErrorBody } from "@/lib/http";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const FIELD_ERROR_ID = "login-password-error";
 const BANNER_ID = "login-error";
@@ -25,6 +26,7 @@ interface LoginFormProps {
 
 export function LoginForm({ next, expired = false }: LoginFormProps) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [password, setPassword] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [banner, setBanner] = useState<{ message: string; focusInput: boolean } | null>(null);
@@ -132,7 +134,8 @@ export function LoginForm({ next, expired = false }: LoginFormProps) {
           {banner.message}
         </p>
       )}
-      <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+      {/* Khóa nút tới khi hydrate xong: submit native sẽ đưa mật khẩu lên URL bằng GET */}
+      <Button type="submit" size="lg" className="w-full" disabled={submitting || !hydrated}>
         {submitting ? "Đang đăng nhập…" : "Đăng nhập"}
       </Button>
     </form>

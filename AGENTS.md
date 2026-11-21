@@ -23,7 +23,7 @@ Cửa hàng đồ công nghệ mini, dự án mẫu cho bài lab; hướng dẫn
 - Sau khi sửa code, chạy `npm run check`; nếu fail thì sửa đến khi pass rồi mới báo cáo. Chạy thêm `npm run format:check`, vì `check` (lint + typecheck + test) không kiểm format.
 - Logic mới có test đặt cạnh file nguồn; quy tắc nghiệp vụ ở trên có test bảo vệ nếu bị chạm tới.
 - Đổi luồng mua hàng, đặt hàng hoặc UI có `data-testid`: chạy `npm run test:e2e`.
-- Đổi khu vực quản trị, cấu hình Next hoặc cách build: chạy `npm run verify:build` (`scripts/verify-build.mjs` tự chạy `next build` với `ADMIN_PASSWORD` = mật khẩu E2E, rồi kiểm không route `/admin*` nào prerender và mật khẩu không có trong `.next/static` lẫn `.next/server/app`).
+- Đổi khu vực quản trị, cấu hình Next hoặc cách build: chạy `npm run verify:build` (`scripts/verify-build.mjs` tự chạy `next build` (bỏ qua bằng `--skip-build` để kiểm lại bản build có sẵn) với `ADMIN_PASSWORD` = mật khẩu E2E, rồi kiểm không route `/admin*` nào prerender và mật khẩu không có trong `.next/static` lẫn `.next/server/app`).
 - Text mới bằng tiếng Việt; lỗi API mới có mã trong `OrderErrorCode` + `HTTP_STATUS_BY_CODE`.
 - Khu vực quản trị chỉ bật khi `ADMIN_PASSWORD` không rỗng (không có mật khẩu mặc định; `.env.example` để trống = tắt). Đăng nhập sai: 5 lần trong 15 phút từ cùng IP thì khóa IP 15 phút (`429 TOO_MANY_ATTEMPTS`), kể cả mật khẩu đúng. IP lấy từ phần tử ngoài cùng bên phải của `x-forwarded-for` nên cần reverse proxy tin cậy; bộ đếm nằm trong bộ nhớ một tiến trình Node, mất khi khởi động lại, không dùng được khi nhiều instance/serverless.
 
