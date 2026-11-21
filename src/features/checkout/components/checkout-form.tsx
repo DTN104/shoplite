@@ -150,7 +150,7 @@ export function CheckoutForm() {
       setStatus("redirecting");
       clear();
       appliedCouponStore.clear();
-      router.push(`/orders/${order.id}?placed=1`);
+      router.push(`/orders/${order.id}`);
     } catch {
       setSubmitError("Không kết nối được máy chủ, vui lòng thử lại.");
       setStatus("idle");

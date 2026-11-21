@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { signToken } from "@/lib/signed-token";
-import { GRANT_COOKIE_NAME, hasGrant, issueGrantCookie, readGrants } from "./order-grant";
+import { getGrant, GRANT_COOKIE_NAME, hasGrant, issueGrantCookie, readGrants } from "./order-grant";
 
 const URL_ = "http://localhost/api/orders";
 const tokenOf = (setCookie: string) => setCookie.split(";")[0].slice(GRANT_COOKIE_NAME.length + 1);
@@ -25,6 +25,12 @@ describe("order-grant", () => {
     expect(hasGrant(token, "SL-A")).toBe(true);
     expect(hasGrant(token, "sl-a")).toBe(true);
     expect(hasGrant(token, "SL-B")).toBe(false);
+  });
+
+  it("getGrant trả grant kèm via, undefined khi sai đơn", () => {
+    const token = tokenOf(issueGrantCookie(req(), "SL-A", "lookup"));
+    expect(getGrant(token, "sl-a")?.via).toBe("lookup");
+    expect(getGrant(token, "SL-B")).toBeUndefined();
   });
 
   it("cấp lại cùng id thì thay mục cũ và làm mới exp", () => {

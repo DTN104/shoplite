@@ -74,7 +74,7 @@ describe("<CheckoutForm />", () => {
       items: [{ productId: "p010", quantity: 2 }],
       customer: { fullName: "Nguyễn Văn A", phone: "0912345678" },
     });
-    expect(push).toHaveBeenCalledWith("/orders/SL-20261021-ABC123?placed=1");
+    expect(push).toHaveBeenCalledWith("/orders/SL-20261021-ABC123");
     expect(cartStore.getSnapshot().items).toEqual([]);
   });
 
@@ -206,7 +206,7 @@ describe("<CheckoutForm />", () => {
 
       await user.click(screen.getByRole("button", { name: "Đặt hàng" }));
       expect(JSON.parse(fetchMock.mock.calls[1][1].body)).not.toHaveProperty("couponCode");
-      expect(push).toHaveBeenCalledWith("/orders/SL-20261108-ABC123?placed=1");
+      expect(push).toHaveBeenCalledWith("/orders/SL-20261108-ABC123");
     });
 
     it("giỏ tụt dưới tối thiểu: mã tạm ngưng, khóa đặt hàng; mua thêm thì mã tự có hiệu lực lại", async () => {

@@ -30,8 +30,11 @@ test("khách hàng tìm sản phẩm, thêm vào giỏ và đặt hàng thành c
   await page.getByRole("button", { name: "Đặt hàng" }).click();
 
   // Trang chi tiết đơn hàng
-  await expect(page).toHaveURL(/\/orders\/SL-\d{8}-[0-9A-F]{6}\?placed=1/);
+  await expect(page).toHaveURL(/\/orders\/SL-\d{8}-[0-9A-F]{6}/);
   await expect(page.getByText("Đặt hàng thành công!")).toBeVisible();
+  const recipient = page.getByTestId("masked-recipient");
+  await expect(recipient).toContainText("•••••• 5678");
+  await expect(recipient).not.toContainText("0912345678");
   await expect(page.getByTestId("cart-count")).toHaveCount(0);
 });
 
@@ -66,7 +69,7 @@ test("khách hàng dùng mã SHOPLITE10 khi thanh toán", async ({ page }) => {
   await page.getByRole("button", { name: "Đặt hàng" }).click();
 
   // Trang chi tiết đơn hàng hiển thị mã và số tiền giảm đã lưu
-  await expect(page).toHaveURL(/\/orders\/SL-\d{8}-[0-9A-F]{6}\?placed=1/);
+  await expect(page).toHaveURL(/\/orders\/SL-\d{8}-[0-9A-F]{6}/);
   const orderDiscount = page.getByTestId("order-discount");
   await expect(orderDiscount).toContainText("SHOPLITE10");
   await expect(orderDiscount).toContainText(/-90\.000/);

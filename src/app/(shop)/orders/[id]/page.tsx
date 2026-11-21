@@ -2,14 +2,16 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CircleCheck } from "lucide-react";
+import { BackLink } from "@/components/ui/back-link";
 import { ProductImage } from "@/features/catalog/components/product-image";
 import { PAYMENT_OPTIONS } from "@/features/checkout/checkout-schema";
 import { SHIPPING_OPTIONS } from "@/features/checkout/pricing";
 import { CancelOrderButton } from "@/features/orders/components/cancel-order-button";
 import { OrderStatusBadge } from "@/features/orders/components/order-status-badge";
+import { OrderSuccessBanner } from "@/features/orders/components/order-success-banner";
 import { OrderTotals } from "@/features/orders/components/order-totals";
-import { GRANT_COOKIE_NAME, hasGrant } from "@/features/order-access/order-grant";
+import { MaskedRecipientCard } from "@/features/order-access/components/masked-recipient-card";
+import { getGrant, GRANT_COOKIE_NAME } from "@/features/order-access/order-grant";
 import type { MaskedOrder } from "@/features/order-access/mask-order";
 import { OrderError } from "@/features/orders/order-errors";
 import { orderService } from "@/features/orders/server";
@@ -30,35 +32,25 @@ export async function generateMetadata({ params }: PageProps<"/orders/[id]">): P
   return { title: `Đơn hàng ${(await params).id}` };
 }
 
-export default async function OrderDetailPage({ params, searchParams }: PageProps<"/orders/[id]">) {
+export default async function OrderDetailPage({ params }: PageProps<"/orders/[id]">) {
   const { id } = await params;
-  const { placed } = await searchParams;
-  // Tạm thời (đến Story 2.4): không có grant thì 404 như URL lạ, không lộ đơn có tồn tại
+  // Đọc grant trước khi chạm dữ liệu đơn; tạm thời (đến Story 2.5) không có grant thì 404 như URL lạ
   const token = (await cookies()).get(GRANT_COOKIE_NAME)?.value;
-  const order = hasGrant(token, id) ? await findOrder(id) : null;
+  const grant = getGrant(token, id);
+  if (!grant) notFound();
+  const order = await findOrder(id);
   if (!order) notFound();
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
-      {placed === "1" && order.status === "pending" && (
-        <div
-          role="status"
-          className="flex items-start gap-3 rounded-2xl bg-emerald-50 p-5 text-emerald-900 ring-1 ring-emerald-200"
-        >
-          <CircleCheck className="mt-0.5 size-6 shrink-0 text-emerald-600" />
-          <div>
-            <p className="font-semibold">Đặt hàng thành công!</p>
-            <p className="text-sm">
-              Cảm ơn {order.recipient.name ?? "bạn"}. Chúng tôi sẽ gọi xác nhận qua số điện thoại
-              bạn đã cung cấp trong thời gian sớm nhất.
-            </p>
-          </div>
-        </div>
-      )}
+      <BackLink href="/orders">Tra cứu đơn khác</BackLink>
 
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="flex flex-wrap items-center gap-3 text-2xl font-bold">
+          <h1
+            tabIndex={-1}
+            className="flex flex-wrap items-center gap-3 text-2xl font-bold outline-none"
+          >
             Đơn hàng {order.id}
             <OrderStatusBadge status={order.status} />
           </h1>
@@ -66,6 +58,10 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
         </div>
         {order.status === "pending" && <CancelOrderButton orderId={order.id} />}
       </header>
+
+      {grant.via === "placed" && order.status === "pending" && (
+        <OrderSuccessBanner orderId={order.id} />
+      )}
 
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 className="mb-2 text-lg font-semibold">Sản phẩm</h2>
@@ -91,13 +87,7 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-slate-200">
-          <h2 className="mb-2 text-base font-semibold">Người nhận</h2>
-          {order.recipient.name && <p className="font-medium">{order.recipient.name}</p>}
-          {order.recipient.phone && <p className="text-slate-600">{order.recipient.phone}</p>}
-          {order.recipient.email && <p className="text-slate-600">{order.recipient.email}</p>}
-          {order.recipient.area && <p className="mt-2 text-slate-600">{order.recipient.area}</p>}
-        </div>
+        <MaskedRecipientCard recipient={order.recipient} />
         <div className="rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-slate-200">
           <h2 className="mb-2 text-base font-semibold">Giao hàng & thanh toán</h2>
           <p>

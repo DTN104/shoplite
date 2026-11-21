@@ -31,7 +31,7 @@ function createShop(page: Page) {
     /** Bấm "Đặt hàng", chờ sang trang đơn và trả về mã đơn. */
     async placeOrder() {
       await page.getByRole("button", { name: "Đặt hàng" }).click();
-      await expect(page).toHaveURL(/\/orders\/SL-\d{8}-[0-9A-F]{6}\?placed=1/);
+      await expect(page).toHaveURL(/\/orders\/SL-\d{8}-[0-9A-F]{6}/);
       return page.url().match(/SL-\d{8}-[0-9A-F]{6}/)![0];
     },
   };
