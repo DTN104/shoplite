@@ -55,10 +55,10 @@ export const test = base.extend<{
   shop: ReturnType<typeof createShop>;
   createPendingOrder: () => Promise<string>;
 }>({
-  shop: async ({ page }, use) => {
-    await use(createShop(page));
+  shop: async ({ page }, provide) => {
+    await provide(createShop(page));
   },
-  createPendingOrder: async ({ request }, use) => {
-    await use(() => createPendingOrder(request));
+  createPendingOrder: async ({ request }, provide) => {
+    await provide(() => createPendingOrder(request));
   },
 });
