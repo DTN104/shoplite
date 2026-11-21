@@ -27,6 +27,7 @@ import {
   checkAdminPassword,
   clearSessionCookie,
   createSessionCookie,
+  getAdminSession,
   isAdminEnabled,
   requireAdmin,
   requireAdminApi,
@@ -106,6 +107,26 @@ describe("requireAdmin", () => {
     vi.stubEnv("ADMIN_PASSWORD", "abc");
     cookieStore.value = tokenOf(createSessionCookie(request));
     await expect(requireAdmin("/admin")).resolves.toBeDefined();
+  });
+});
+
+describe("getAdminSession", () => {
+  it("phân biệt không cookie, cookie rác và cookie hợp lệ", async () => {
+    vi.stubEnv("ADMIN_PASSWORD", "abc");
+    await expect(getAdminSession()).resolves.toBe("none");
+    cookieStore.value = "rac";
+    await expect(getAdminSession()).resolves.toBe("invalid");
+    cookieStore.value = tokenOf(createSessionCookie(request));
+    await expect(getAdminSession()).resolves.toBe("valid");
+  });
+
+  it("chưa cấu hình (thiếu hoặc rỗng) thì luôn là none, kể cả cookie ký lúc đã có mật khẩu", async () => {
+    vi.stubEnv("ADMIN_PASSWORD", "abc");
+    cookieStore.value = tokenOf(createSessionCookie(request));
+    vi.stubEnv("ADMIN_PASSWORD", undefined);
+    await expect(getAdminSession()).resolves.toBe("none");
+    vi.stubEnv("ADMIN_PASSWORD", "");
+    await expect(getAdminSession()).resolves.toBe("none");
   });
 });
 

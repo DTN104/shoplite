@@ -55,10 +55,18 @@ function readCookie(request: Request, name: string): string | undefined {
   return undefined;
 }
 
+/** Trạng thái cookie phiên: hợp lệ, có nhưng sai/hết hạn, hoặc không có. */
+export async function getAdminSession(): Promise<"valid" | "invalid" | "none"> {
+  if (!isAdminEnabled()) return "none"; // khóa rỗng ký được token, không được coi là phiên
+  const token = (await cookies()).get(COOKIE_NAME)?.value;
+  if (token === undefined) return "none";
+  return isValidSession(token) ? "valid" : "invalid";
+}
+
 /** Dòng đầu của mọi page /admin/** (trừ login). */
 export async function requireAdmin(currentPath: string): Promise<AdminContext> {
   assertAdminEnabled();
-  if (!isValidSession((await cookies()).get(COOKIE_NAME)?.value)) {
+  if ((await getAdminSession()) !== "valid") {
     redirect(`/admin/login?next=${encodeURIComponent(currentPath)}`);
   }
   return adminContext;
