@@ -11,6 +11,11 @@ describe("isOverdue", () => {
     expect(isOverdue(pending, new Date(Date.parse(CREATED) + PENDING_SLA_MS))).toBe(false);
     expect(isOverdue(pending, new Date(Date.parse(CREATED) + PENDING_SLA_MS + 1))).toBe(true);
   });
+  it("đặt 21:00, 01:00:00 hôm sau chưa đỏ, 01:00:01 đỏ (ISO UTC, không phụ thuộc múi giờ)", () => {
+    const order = { status: "pending", createdAt: "2026-10-20T21:00:00.000Z" } as const;
+    expect(isOverdue(order, new Date("2026-10-21T01:00:00.000Z"))).toBe(false);
+    expect(isOverdue(order, new Date("2026-10-21T01:00:01.000Z"))).toBe(true);
+  });
   it("đơn không pending không bao giờ quá hạn", () => {
     expect(isOverdue({ ...pending, status: "confirmed" }, new Date(t(1000)))).toBe(false);
   });
@@ -94,5 +99,16 @@ describe("buildQueue", () => {
     const q = buildQueue(orders, now);
     expect(Object.values(q).map((g) => g.count)).toEqual([4, 2, 2, 2]);
     expect(orders[0].id).toBe("P-new");
+  });
+});
+
+describe("buildQueue - đơn tồn đọng (Story 4.8)", () => {
+  it("11 đơn cũ hơn 4 giờ đều quá hạn và nằm trên đơn mới; số đếm đủ 12", () => {
+    const now = new Date(t(100));
+    const old = Array.from({ length: 11 }, (_, i) => makeOrder(`O${i}`, "pending", t(i)));
+    const q = buildQueue([makeOrder("NEW", "pending", t(99)), ...old], now);
+    expect(q.pending.count).toBe(12);
+    expect(q.pending.rows.slice(0, 11).every((r) => r.overdue)).toBe(true);
+    expect(q.pending.rows[11]).toMatchObject({ id: "NEW", overdue: false });
   });
 });

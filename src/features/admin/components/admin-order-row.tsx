@@ -1,4 +1,3 @@
-import { Clock } from "lucide-react";
 import Link from "next/link";
 import { OrderStatusBadge } from "@/features/orders/components/order-status-badge";
 import { cn } from "@/lib/cn";
@@ -6,6 +5,7 @@ import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { OrderStatus } from "@/features/orders/types";
 import type { NoticeCode } from "../admin-notice";
 import type { QueueRow } from "../queue-rules";
+import { PendingAge } from "./pending-age";
 import { isStepStatus, StepButton } from "./step-button";
 
 /** Một dòng Hàng việc. Tuổi đơn đã tính ở server (`ageLabel`), không tự đếm ở client. */
@@ -35,19 +35,7 @@ export function AdminOrderRow({
           {row.id}
         </Link>
         <OrderStatusBadge status={row.status} />
-        {row.ageLabel && (
-          <span
-            data-testid={row.overdue ? "overdue-age" : undefined}
-            className={cn(
-              "inline-flex items-center gap-1 text-sm",
-              row.overdue ? "font-semibold text-rose-700" : "text-slate-600",
-            )}
-          >
-            <Clock className="size-4" aria-hidden />
-            {row.overdue && <span className="sr-only">Quá hạn, </span>}
-            {row.ageLabel}
-          </span>
-        )}
+        {row.ageLabel && <PendingAge label={row.ageLabel} overdue={row.overdue} />}
         <span className="ml-auto font-bold text-slate-900">{formatCurrency(row.total)}</span>
       </div>
       <p className={cn("mt-1 text-sm", row.overdue ? "text-slate-600" : "text-slate-500")}>

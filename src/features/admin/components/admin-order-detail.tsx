@@ -6,7 +6,8 @@ import { OrderStatusBadge } from "@/features/orders/components/order-status-badg
 import { OrderTotals } from "@/features/orders/components/order-totals";
 import type { StoredOrder } from "@/features/orders/types";
 import { formatCurrency, formatDateTime } from "@/lib/format";
-import { ADMIN_TAB_BY_STATUS, formatPendingAge } from "../queue-rules";
+import { ADMIN_TAB_BY_STATUS, formatPendingAge, isOverdue } from "../queue-rules";
+import { PendingAge } from "./pending-age";
 import { OrderActionError, OrderActionsProvider } from "./order-actions";
 import { ReviewActions } from "./review-actions";
 import { DetailStepButton } from "./detail-step-button";
@@ -41,7 +42,11 @@ export function AdminOrderDetail({ order, now, stock }: AdminOrderDetailProps) {
             {order.status === "pending" && (
               <>
                 {" "}
-                <span aria-hidden>·</span> <span>{formatPendingAge(order.createdAt, now)}</span>
+                <span aria-hidden>·</span>{" "}
+                <PendingAge
+                  label={formatPendingAge(order.createdAt, now)}
+                  overdue={isOverdue(order, now)}
+                />
               </>
             )}
           </p>

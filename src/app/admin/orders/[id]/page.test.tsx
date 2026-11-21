@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderError } from "@/features/orders/order-errors";
 import type { Order, OrderStatus } from "@/features/orders/types";
@@ -122,7 +122,8 @@ describe("trang /admin/orders/[id] - nội dung", () => {
     await renderPage();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(`Đơn hàng ${ID}`);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Chờ xác nhận");
-    expect(screen.getByText(/Đặt lúc/)).toHaveTextContent("· Chờ 5 giờ");
+    expect(screen.getByText(/Đặt lúc/)).toHaveTextContent("· Quá hạn, Chờ 5 giờ");
+    expect(screen.getByTestId("overdue-age")).toHaveClass("font-semibold", "text-rose-700");
 
     expect(screen.getByText("Cáp USB-C")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Cáp USB-C" })).toBeNull();
@@ -180,6 +181,23 @@ describe("trang /admin/orders/[id] - nội dung", () => {
     const names = screen.queryAllByRole("button").map((b) => b.textContent);
     expect(names).toEqual(label ? [`${label} đơn ${ID}`] : []);
     expect(screen.getByText(/Đặt lúc/)).not.toHaveTextContent("Chờ ");
+  });
+});
+
+describe("trang /admin/orders/[id] - quá hạn (Story 4.8)", () => {
+  it("đúng 4 giờ chưa đỏ; 4 giờ + 1ms đỏ; không pending không đỏ", async () => {
+    vi.setSystemTime(new Date("2026-10-21T07:00:00.000Z"));
+    await renderPage();
+    expect(screen.queryByTestId("overdue-age")).toBeNull();
+    expect(screen.getByText(/Đặt lúc/)).toHaveTextContent("· Chờ 4 giờ");
+    cleanup();
+    vi.setSystemTime(new Date("2026-10-21T07:00:00.001Z"));
+    await renderPage();
+    expect(screen.getByTestId("overdue-age")).toHaveTextContent("Quá hạn, Chờ 4 giờ");
+    cleanup();
+    mocks.getOrderForStaff.mockResolvedValue(order("confirmed"));
+    await renderPage();
+    expect(screen.queryByTestId("overdue-age")).toBeNull();
   });
 });
 
