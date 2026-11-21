@@ -208,7 +208,6 @@ export function createOrderService({
      * -> `from` lệch trạng thái đang lưu (ORDER_STATUS_CONFLICT) -> cặp không hợp lệ -> khi sang
      * confirmed, dòng vượt Tồn hiện tại (INSUFFICIENT_STOCK). Chỉ confirmed trừ kho.
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- ctx chỉ để buộc có AdminContext
     async transitionByStaff(
       _ctx: AdminContext,
       id: string,
