@@ -8,7 +8,6 @@ const LINKS = [
   // Ẩn ở màn hình hẹp để header đủ chỗ cho icon yêu thích + giỏ hàng; logo vẫn dẫn về trang chủ.
   { href: "/", label: "Trang chủ", hideOnMobile: true },
   { href: "/products", label: "Sản phẩm" },
-  { href: "/orders", label: "Đơn hàng" },
 ];
 
 function isActive(pathname: string, href: string): boolean {

@@ -1,8 +1,10 @@
 import { formatCurrency } from "@/lib/format";
 import type { Order } from "../types";
 
+type Totals = Pick<Order, "subtotal" | "couponCode" | "discount" | "shippingFee" | "total">;
+
 interface OrderTotalsProps {
-  order: Order;
+  order: Totals;
 }
 
 /**

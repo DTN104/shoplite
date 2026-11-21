@@ -9,6 +9,7 @@ import { findCouponByCode } from "@/features/coupons/coupon-service";
 import type { Coupon } from "@/features/coupons/types";
 import { maskOrder, type MaskedOrder } from "@/features/order-access/mask-order";
 import { verifyLookup } from "@/features/order-access/verify-lookup";
+import type { AdminContext } from "@/features/admin/admin-guard";
 import { OrderError } from "./order-errors";
 import type { OrderRepository } from "./order-repository";
 import type { Order, OrderItem } from "./types";
@@ -60,7 +61,7 @@ export function createOrderService({
      * - Kiểm tra tồn kho
      * - Kiểm tra lại mã giảm giá và tự tính số tiền giảm (bỏ qua mọi số tiền client gửi lên)
      */
-    async placeOrder(input: unknown): Promise<Order> {
+    async placeOrder(input: unknown): Promise<MaskedOrder> {
       const parsed = placeOrderSchema.safeParse(input);
       if (!parsed.success) {
         throw new OrderError(
@@ -140,16 +141,25 @@ export function createOrderService({
       };
 
       await repository.save(order);
-      return order;
+      return maskOrder(order);
     },
 
-    /** Danh sách đơn hàng, mới nhất trước. */
-    async listOrders(): Promise<Order[]> {
+    /** Danh sách đơn đầy đủ cho nhân viên, mới nhất trước. */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- ctx chỉ để buộc có AdminContext
+    async listOrders(_ctx: AdminContext): Promise<Order[]> {
       const orders = await repository.findAll();
       return orders.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },
 
-    getOrder,
+    /** Đơn đầy đủ cho nhân viên. Không có hàm tương đương cho khách: khách chỉ nhận MaskedOrder. */
+    async getOrderForStaff(_ctx: AdminContext, id: string): Promise<Order> {
+      return getOrder(id);
+    },
+
+    /** Đơn đã che; chỉ gọi sau khi đã kiểm grant. */
+    async getMaskedOrder(id: string): Promise<MaskedOrder> {
+      return maskOrder(await getOrder(id));
+    },
 
     /** Tra cứu của khách: đúng Mã xác minh thì trả bản che, sai hoặc không có đơn thì null (không phân biệt). */
     async lookupOrder(canonicalId: string, verification: string): Promise<MaskedOrder | null> {
@@ -158,7 +168,7 @@ export function createOrderService({
     },
 
     /** Khách hàng chỉ được hủy đơn khi đơn còn ở trạng thái "Chờ xác nhận". */
-    async cancelOrder(id: string): Promise<Order> {
+    async cancelOrder(id: string): Promise<MaskedOrder> {
       const order = await getOrder(id);
       if (order.status !== "pending") {
         throw new OrderError(
@@ -168,7 +178,7 @@ export function createOrderService({
       }
       const cancelled: Order = { ...order, status: "cancelled", updatedAt: now().toISOString() };
       await repository.save(cancelled);
-      return cancelled;
+      return maskOrder(cancelled);
     },
   };
 }

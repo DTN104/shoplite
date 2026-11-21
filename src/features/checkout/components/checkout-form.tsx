@@ -27,7 +27,6 @@ import {
 } from "@/features/coupons/applied-coupon-store";
 import { CouponField } from "@/features/coupons/components/coupon-field";
 import type { ApiErrorBody } from "@/lib/http";
-import type { Order } from "@/features/orders/types";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
 import { CheckoutSummary } from "./checkout-summary";
@@ -147,7 +146,7 @@ export function CheckoutForm() {
         return;
       }
 
-      const order = (await response.json()) as Order;
+      const order = (await response.json()) as { id: string };
       setStatus("redirecting");
       clear();
       appliedCouponStore.clear();

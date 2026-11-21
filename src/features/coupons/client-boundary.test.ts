@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -11,6 +11,10 @@ const SERVER_ONLY_MODULES = [
   "@/data/coupons",
   "@/features/coupons/coupon-service",
   "@/features/orders/server",
+  "@/features/order-access/order-grant",
+  "@/features/order-access/verify-lookup",
+  "@/features/order-access/lookup-limiter",
+  "@/features/orders/order-service",
 ];
 
 function listSourceFiles(dir: string): string[] {
@@ -21,8 +25,29 @@ function listSourceFiles(dir: string): string[] {
   });
 }
 
+/** Import giá trị (bỏ `import type`, vì kiểu bị xóa lúc biên dịch). */
 function importsOf(source: string): string[] {
-  return [...source.matchAll(/from\s+["']([^"']+)["']/g)].map((match) => match[1]);
+  const withoutTypeImports = source.replace(/import\s+type\s[\s\S]*?from\s+["'][^"']+["'];?/g, "");
+  return [...withoutTypeImports.matchAll(/from\s+["']([^"']+)["']/g)].map((match) => match[1]);
+}
+
+/** Đường dẫn file nguồn ứng với một alias `@/...`, nếu có trong src. */
+function resolveAlias(alias: string): string | undefined {
+  if (!alias.startsWith("@/")) return undefined;
+  const base = path.join(SRC_DIR, alias.slice(2));
+  return [".ts", ".tsx", "/index.ts", "/index.tsx"].map((ext) => base + ext).find(existsSync);
+}
+
+/** Mọi module server-only mà `file` chạm tới kể cả bắc cầu (qua file nguồn trong src). */
+function reachableServerModules(file: string, seen = new Set<string>()): string[] {
+  if (seen.has(file)) return [];
+  seen.add(file);
+  return importsOf(readFileSync(file, "utf8")).flatMap((specifier) => {
+    const alias = toAlias(file, specifier);
+    if (SERVER_ONLY_MODULES.includes(alias)) return [alias];
+    const next = resolveAlias(alias);
+    return next ? reachableServerModules(next, seen) : [];
+  });
 }
 
 /** Chuyển import tương đối ("../coupon-service") về dạng alias ("@/features/coupons/coupon-service"). */
@@ -51,5 +76,25 @@ describe("ranh giới client/server", () => {
     );
 
     expect(violations).toEqual([]);
+  });
+
+  it("không import bắc cầu tới module server-only (kể cả order-access phía server)", () => {
+    const violations = clientFiles.flatMap((file) =>
+      [...new Set(reachableServerModules(file))].map(
+        (alias) => `${path.relative(SRC_DIR, file)} → ${alias}`,
+      ),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("bắt được import bắc cầu (phát hiện qua file trung gian)", () => {
+    const tmp = path.join(SRC_DIR, "features/order-access");
+    // order-grant import node:crypto trực tiếp, nên module này phải nằm trong danh sách server-only
+    expect(SERVER_ONLY_MODULES).toContain("@/features/order-access/order-grant");
+    expect(reachableServerModules(path.join(tmp, "order-grant.ts"))).toEqual([]);
+    expect(
+      reachableServerModules(path.join(SRC_DIR, "app/api/orders/lookup/route.ts")).length,
+    ).toBeGreaterThan(0);
   });
 });

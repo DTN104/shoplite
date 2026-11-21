@@ -1,3 +1,4 @@
+import type { AdminContext } from "@/features/admin/admin-guard";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SHIPPING_OPTIONS } from "@/features/checkout/pricing";
 import { formatCurrency } from "@/lib/format";
@@ -5,6 +6,7 @@ import { OrderError } from "./order-errors";
 import { createInMemoryOrderRepository, type OrderRepository } from "./order-repository";
 import { createOrderService, generateOrderId, type OrderService } from "./order-service";
 
+const staff = {} as AdminContext;
 const FIXED_DATE = new Date("2026-10-21T03:00:00.000Z");
 
 const validInput = (overrides: Record<string, unknown> = {}) => ({
@@ -58,8 +60,15 @@ describe("orderService", () => {
         unitPrice: 150_000,
         lineTotal: 300_000,
       });
-      expect(order.customer.email).toBeUndefined();
-      expect(await repository.findById(order.id)).toEqual(order);
+      expect(order).not.toHaveProperty("customer");
+      const saved = await repository.findById(order.id);
+      expect(saved?.customer).toMatchObject({ fullName: "Trần Thị B", phone: "0987654321" });
+      expect(saved?.customer.email).toBeUndefined();
+      expect(order.recipient).toEqual({
+        name: "B",
+        phone: "•••••• 4321",
+        area: "Đà Nẵng",
+      });
     });
 
     it("bỏ qua giá do client gửi lên", async () => {
@@ -129,7 +138,11 @@ describe("orderService", () => {
           shippingFee: 0,
           total: 550_000,
         });
-        expect(await repository.findById(order.id)).toEqual(order);
+        expect(await repository.findById(order.id)).toMatchObject({
+          couponCode: "GIAM50K",
+          discount: 50_000,
+          total: order.total,
+        });
       });
 
       it("miễn phí giao hàng xét theo tạm tính trước giảm giá", async () => {
@@ -263,7 +276,7 @@ describe("orderService", () => {
     });
   });
 
-  describe("listOrders / getOrder", () => {
+  describe("listOrders / getOrderForStaff / getMaskedOrder", () => {
     it("liệt kê đơn hàng mới nhất trước", async () => {
       let time = FIXED_DATE.getTime();
       const timedService = createOrderService({
@@ -273,12 +286,19 @@ describe("orderService", () => {
       const first = await timedService.placeOrder(validInput());
       const second = await timedService.placeOrder(validInput());
 
-      const orders = await timedService.listOrders();
+      const orders = await timedService.listOrders(staff);
       expect(orders.map((order) => order.id)).toEqual([second.id, first.id]);
     });
 
     it("trả lỗi ORDER_NOT_FOUND với mã đơn không tồn tại", async () => {
-      await expectOrderError(service.getOrder("SL-KHONG-CO"), "ORDER_NOT_FOUND");
+      await expectOrderError(service.getOrderForStaff(staff, "SL-KHONG-CO"), "ORDER_NOT_FOUND");
+      await expectOrderError(service.getMaskedOrder("SL-KHONG-CO"), "ORDER_NOT_FOUND");
+    });
+
+    it("nhân viên nhận đơn đầy đủ, khách chỉ nhận bản che", async () => {
+      const order = await service.placeOrder(validInput());
+      expect((await service.getOrderForStaff(staff, order.id)).customer.phone).toBe("0987654321");
+      expect(await service.getMaskedOrder(order.id)).toEqual(order);
     });
   });
 
@@ -287,7 +307,7 @@ describe("orderService", () => {
       const order = await service.placeOrder(validInput());
       const cancelled = await service.cancelOrder(order.id);
       expect(cancelled.status).toBe("cancelled");
-      expect((await service.getOrder(order.id)).status).toBe("cancelled");
+      expect((await service.getOrderForStaff(staff, order.id)).status).toBe("cancelled");
     });
 
     it("hủy đơn giữ nguyên mã giảm giá và số tiền giảm đã lưu", async () => {
@@ -303,7 +323,8 @@ describe("orderService", () => {
     });
 
     it("đơn cũ không có thông tin giảm giá vẫn xem, liệt kê và hủy được", async () => {
-      const legacy = await service.placeOrder(validInput());
+      const placed = await service.placeOrder(validInput());
+      const legacy = (await repository.findById(placed.id))!;
       const legacyWithoutDiscount = { ...legacy };
       delete legacyWithoutDiscount.discount;
       const legacyRepository = createInMemoryOrderRepository([legacyWithoutDiscount]);
@@ -312,8 +333,8 @@ describe("orderService", () => {
         now: () => FIXED_DATE,
       });
 
-      expect(await legacyService.getOrder(legacy.id)).not.toHaveProperty("discount");
-      expect((await legacyService.listOrders()).map((order) => order.id)).toEqual([legacy.id]);
+      expect(await legacyService.getOrderForStaff(staff, legacy.id)).not.toHaveProperty("discount");
+      expect((await legacyService.listOrders(staff)).map((order) => order.id)).toEqual([legacy.id]);
       const cancelled = await legacyService.cancelOrder(legacy.id);
       expect(cancelled.status).toBe("cancelled");
       expect(cancelled.total).toBe(legacy.total);
@@ -321,7 +342,7 @@ describe("orderService", () => {
 
     it("không cho hủy đơn đã hủy hoặc đã xác nhận", async () => {
       const order = await service.placeOrder(validInput());
-      await repository.save({ ...order, status: "confirmed" });
+      await repository.save({ ...(await repository.findById(order.id))!, status: "confirmed" });
       await expectOrderError(service.cancelOrder(order.id), "INVALID_STATUS_TRANSITION");
     });
   });

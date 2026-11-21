@@ -74,6 +74,14 @@ describe("chốt chặn khu vực quản trị", () => {
     expect(violations).toEqual([]);
   });
 
+  it("GET /api/orders (danh sách đơn đầy đủ) gọi guard ở dòng đầu", () => {
+    const source = readFileSync(path.join(SRC_DIR, "app/api/orders/route.ts"), "utf8");
+    const [head] = firstStatements(source, /export (?:async )?function GET/);
+    const match = GUARD_CALL.exec(head ?? "");
+    expect(match).not.toBeNull();
+    expect(head).toContain(`if (${match![1]} instanceof Response) return ${match![1]};`);
+  });
+
   it("bắt handler bỏ qua kết quả requireAdminApi và nêu tên file", () => {
     const bad =
       "export async function POST(request: Request) {\n  await requireAdminApi(request);\n  return x;\n}";

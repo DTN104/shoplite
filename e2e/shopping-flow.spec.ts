@@ -33,10 +33,6 @@ test("khách hàng tìm sản phẩm, thêm vào giỏ và đặt hàng thành c
   await expect(page).toHaveURL(/\/orders\/SL-\d{8}-[0-9A-F]{6}\?placed=1/);
   await expect(page.getByText("Đặt hàng thành công!")).toBeVisible();
   await expect(page.getByTestId("cart-count")).toHaveCount(0);
-
-  const orderId = page.url().match(/SL-\d{8}-[0-9A-F]{6}/)![0];
-  await page.getByRole("link", { name: "Tất cả đơn hàng" }).click();
-  await expect(page.getByTestId("order-row").filter({ hasText: orderId })).toBeVisible();
 });
 
 test("khách hàng dùng mã SHOPLITE10 khi thanh toán", async ({ page }) => {

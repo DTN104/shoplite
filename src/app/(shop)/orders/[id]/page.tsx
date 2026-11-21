@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CircleCheck } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 import { ProductImage } from "@/features/catalog/components/product-image";
 import { PAYMENT_OPTIONS } from "@/features/checkout/checkout-schema";
 import { SHIPPING_OPTIONS } from "@/features/checkout/pricing";
 import { CancelOrderButton } from "@/features/orders/components/cancel-order-button";
 import { OrderStatusBadge } from "@/features/orders/components/order-status-badge";
 import { OrderTotals } from "@/features/orders/components/order-totals";
+import { GRANT_COOKIE_NAME, hasGrant } from "@/features/order-access/order-grant";
+import type { MaskedOrder } from "@/features/order-access/mask-order";
 import { OrderError } from "@/features/orders/order-errors";
 import { orderService } from "@/features/orders/server";
-import type { Order } from "@/features/orders/types";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-async function findOrder(id: string): Promise<Order | null> {
+async function findOrder(id: string): Promise<MaskedOrder | null> {
   try {
-    return await orderService.getOrder(id);
+    return await orderService.getMaskedOrder(id);
   } catch (error) {
     if (error instanceof OrderError && error.code === "ORDER_NOT_FOUND") return null;
     throw error;
@@ -31,18 +33,13 @@ export async function generateMetadata({ params }: PageProps<"/orders/[id]">): P
 export default async function OrderDetailPage({ params, searchParams }: PageProps<"/orders/[id]">) {
   const { id } = await params;
   const { placed } = await searchParams;
-  const order = await findOrder(id);
+  // Tạm thời (đến Story 2.4): không có grant thì 404 như URL lạ, không lộ đơn có tồn tại
+  const token = (await cookies()).get(GRANT_COOKIE_NAME)?.value;
+  const order = hasGrant(token, id) ? await findOrder(id) : null;
   if (!order) notFound();
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
-      <Link
-        href="/orders"
-        className="flex w-fit items-center gap-1 text-sm font-medium text-slate-600 hover:text-indigo-600"
-      >
-        <ArrowLeft className="size-4" /> Tất cả đơn hàng
-      </Link>
-
       {placed === "1" && order.status === "pending" && (
         <div
           role="status"
@@ -52,8 +49,8 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
           <div>
             <p className="font-semibold">Đặt hàng thành công!</p>
             <p className="text-sm">
-              Cảm ơn {order.customer.fullName}. Chúng tôi sẽ gọi xác nhận qua số{" "}
-              {order.customer.phone} trong thời gian sớm nhất.
+              Cảm ơn {order.recipient.name ?? "bạn"}. Chúng tôi sẽ gọi xác nhận qua số điện thoại
+              bạn đã cung cấp trong thời gian sớm nhất.
             </p>
           </div>
         </div>
@@ -96,13 +93,10 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
       <section className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-slate-200">
           <h2 className="mb-2 text-base font-semibold">Người nhận</h2>
-          <p className="font-medium">{order.customer.fullName}</p>
-          <p className="text-slate-600">{order.customer.phone}</p>
-          {order.customer.email && <p className="text-slate-600">{order.customer.email}</p>}
-          <p className="mt-2 text-slate-600">{order.customer.address}</p>
-          {order.customer.note && (
-            <p className="mt-2 text-slate-500 italic">Ghi chú: {order.customer.note}</p>
-          )}
+          {order.recipient.name && <p className="font-medium">{order.recipient.name}</p>}
+          {order.recipient.phone && <p className="text-slate-600">{order.recipient.phone}</p>}
+          {order.recipient.email && <p className="text-slate-600">{order.recipient.email}</p>}
+          {order.recipient.area && <p className="mt-2 text-slate-600">{order.recipient.area}</p>}
         </div>
         <div className="rounded-2xl bg-white p-5 text-sm shadow-sm ring-1 ring-slate-200">
           <h2 className="mb-2 text-base font-semibold">Giao hàng & thanh toán</h2>

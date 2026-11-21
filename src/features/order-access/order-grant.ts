@@ -39,7 +39,12 @@ export function getRequestGrantToken(request: Request): string | undefined {
 
 /** Có grant còn hiệu lực đúng đơn `id` (so qua canonicalOrderId). */
 export function hasGrant(token: string | undefined, id: string, now?: () => number): boolean {
-  const wanted = canonicalOrderId(id);
+  let wanted: string;
+  try {
+    wanted = canonicalOrderId(id);
+  } catch {
+    return false; // mã quá dài: không bao giờ có grant, và không được khác 401 của mã thường
+  }
   return readGrants(token, now).some((g) => canonicalOrderId(g.id) === wanted);
 }
 
