@@ -7,7 +7,8 @@ export type OrderErrorCode =
   | "COUPON_NOT_FOUND"
   | "COUPON_EXPIRED"
   | "COUPON_MIN_SUBTOTAL_NOT_MET"
-  | "UNAUTHORIZED";
+  | "UNAUTHORIZED"
+  | "TOO_MANY_ATTEMPTS";
 
 const HTTP_STATUS_BY_CODE: Record<OrderErrorCode, number> = {
   VALIDATION_ERROR: 400,
@@ -19,6 +20,7 @@ const HTTP_STATUS_BY_CODE: Record<OrderErrorCode, number> = {
   COUPON_EXPIRED: 422,
   COUPON_MIN_SUBTOTAL_NOT_MET: 422,
   UNAUTHORIZED: 401,
+  TOO_MANY_ATTEMPTS: 429,
 };
 
 /** Lỗi nghiệp vụ của đơn hàng - route handler chuyển thành HTTP response tương ứng. */
