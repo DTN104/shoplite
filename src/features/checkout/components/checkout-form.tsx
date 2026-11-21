@@ -6,6 +6,7 @@ import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "reac
 import { Banknote, CreditCard, Truck, Zap } from "lucide-react";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { syncCartStock, useSyncCartStock } from "@/features/cart/stock-sync";
 import { useCart } from "@/features/cart/use-cart";
 import {
   checkoutFormSchema,
@@ -57,6 +58,7 @@ const inputClass =
 export function CheckoutForm() {
   const router = useRouter();
   const { items, subtotal, hydrated, clear } = useCart();
+  useSyncCartStock(hydrated && items.length > 0);
   // Client chỉ tính để hiển thị (cùng quy tắc với server); khi đặt hàng chỉ gửi mã, server tính lại
   const couponStatus = useAppliedCouponStatus(subtotal);
   const [values, setValues] = useState<CheckoutFormValues>(INITIAL_VALUES);
@@ -141,6 +143,8 @@ export function CheckoutForm() {
           });
         } else {
           setSubmitError(body?.error.message ?? "Không thể đặt hàng, vui lòng thử lại.");
+          // Làm mới tồn để dòng vượt tồn ở giỏ hiện cảnh báo; không khóa nút đặt hàng
+          if (body?.error.code === "INSUFFICIENT_STOCK") void syncCartStock();
         }
         setStatus("idle");
         return;
