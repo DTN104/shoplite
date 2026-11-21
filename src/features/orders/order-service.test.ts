@@ -1,6 +1,6 @@
 import type { AdminContext } from "@/features/admin/admin-guard";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getProductById } from "@/features/catalog/catalog-service";
+import { getProductById } from "@/features/catalog/catalog-data";
 import { SHIPPING_OPTIONS } from "@/features/checkout/pricing";
 import { formatCurrency } from "@/lib/format";
 import { OrderError } from "./order-errors";
