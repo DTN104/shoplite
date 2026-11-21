@@ -64,6 +64,10 @@ describe("chốt chặn khu vực quản trị", () => {
   it("mỗi handler /api/admin/** gọi requireAdminApi rồi trả Response nếu bị từ chối", () => {
     const routes = listFiles(path.join(SRC_DIR, "app/api/admin"), /(^|\/)route\.ts$/);
     expect(routes.length).toBeGreaterThan(0);
+    // Route tìm SĐT (Story 6.1) phải nằm trong phạm vi quét
+    expect(routes.map((r) => r.split(path.sep).join("/"))).toContainEqual(
+      expect.stringContaining("api/admin/orders/search/route.ts"),
+    );
 
     const violations = routes.flatMap((file) => {
       const name = path.relative(process.cwd(), file);

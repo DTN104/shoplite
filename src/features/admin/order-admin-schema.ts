@@ -44,3 +44,11 @@ export const staffTransitionSchema = z.discriminatedUnion(
 );
 
 export type StaffTransitionBody = z.infer<typeof staffTransitionSchema>;
+
+/** Body POST /api/admin/orders/search. SĐT chỉ đi trong body, không có trường tiền hay tồn (AD-8). */
+export const phoneSearchSchema = z.object({
+  phone: z
+    .string({ error: "Số điện thoại phải là chuỗi" })
+    .trim()
+    .max(32, "Số điện thoại tối đa 32 ký tự"),
+});
