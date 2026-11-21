@@ -9,6 +9,7 @@ import { formatCurrency, formatDateTime } from "@/lib/format";
 import { ADMIN_TAB_BY_STATUS, formatPendingAge } from "../queue-rules";
 import { OrderActionError, OrderActionsProvider } from "./order-actions";
 import { ReviewActions } from "./review-actions";
+import { DetailStepButton } from "./detail-step-button";
 import { AdminRecipientCard } from "./admin-recipient-card";
 import { hasShortage, StockReviewTable } from "./stock-review-table";
 
@@ -28,10 +29,13 @@ export function AdminOrderDetail({ order, now, stock }: AdminOrderDetailProps) {
         <BackLink href={`/admin?tab=${ADMIN_TAB_BY_STATUS[order.status]}`}>Hàng việc</BackLink>
 
         <header>
-          <h1 className="flex flex-wrap items-center gap-3 text-2xl font-bold">
-            Đơn hàng {order.id}
-            <OrderStatusBadge status={order.status} />
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="flex flex-wrap items-center gap-3 text-2xl font-bold">
+              Đơn hàng {order.id}
+              <OrderStatusBadge status={order.status} />
+            </h1>
+            <DetailStepButton orderId={order.id} status={order.status} />
+          </div>
           <p className="mt-1 text-sm text-slate-600">
             Đặt lúc {formatDateTime(order.createdAt)}
             {order.status === "pending" && (

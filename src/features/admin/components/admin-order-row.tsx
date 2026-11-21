@@ -3,10 +3,22 @@ import Link from "next/link";
 import { OrderStatusBadge } from "@/features/orders/components/order-status-badge";
 import { cn } from "@/lib/cn";
 import { formatCurrency, formatDateTime } from "@/lib/format";
+import type { OrderStatus } from "@/features/orders/types";
+import type { NoticeCode } from "../admin-notice";
 import type { QueueRow } from "../queue-rules";
+import { isStepStatus, StepButton } from "./step-button";
 
 /** Một dòng Hàng việc. Tuổi đơn đã tính ở server (`ageLabel`), không tự đếm ở client. */
-export function AdminOrderRow({ row }: { row: QueueRow }) {
+export function AdminOrderRow({
+  row,
+  stepPending = false,
+  onStep,
+}: {
+  row: QueueRow;
+  stepPending?: boolean;
+  /** Có thì dòng `confirmed`/`shipping` hiện StepButton. */
+  onStep?: (from: OrderStatus, to: OrderStatus, notice: NoticeCode) => void;
+}) {
   return (
     <li
       data-testid="admin-order-row"
@@ -41,6 +53,11 @@ export function AdminOrderRow({ row }: { row: QueueRow }) {
       <p className={cn("mt-1 text-sm", row.overdue ? "text-slate-600" : "text-slate-500")}>
         {formatDateTime(row.createdAt)} · {row.customerName} · {row.itemCount} sản phẩm
       </p>
+      {onStep && isStepStatus(row.status) && (
+        <div className="mt-3 flex sm:justify-end">
+          <StepButton orderId={row.id} status={row.status} pending={stepPending} onStep={onStep} />
+        </div>
+      )}
     </li>
   );
 }

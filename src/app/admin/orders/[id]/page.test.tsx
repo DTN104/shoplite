@@ -169,15 +169,18 @@ describe("trang /admin/orders/[id] - nội dung", () => {
     );
   });
 
-  it.each<OrderStatus>(["confirmed", "shipping", "delivered", "cancelled"])(
-    "đơn %s: chỉ hiển thị, không nút thao tác, không tuổi đơn",
-    async (status) => {
-      mocks.getOrderForStaff.mockResolvedValue(order(status));
-      await renderPage();
-      expect(screen.queryByRole("button")).toBeNull();
-      expect(screen.getByText(/Đặt lúc/)).not.toHaveTextContent("Chờ ");
-    },
-  );
+  it.each<[OrderStatus, string | null]>([
+    ["confirmed", "Bắt đầu giao"],
+    ["shipping", "Đã giao xong"],
+    ["delivered", null],
+    ["cancelled", null],
+  ])("đơn %s: chỉ có StepButton đúng nhãn (nếu có), không tuổi đơn", async (status, label) => {
+    mocks.getOrderForStaff.mockResolvedValue(order(status));
+    await renderPage();
+    const names = screen.queryAllByRole("button").map((b) => b.textContent);
+    expect(names).toEqual(label ? [`${label} đơn ${ID}`] : []);
+    expect(screen.getByText(/Đặt lúc/)).not.toHaveTextContent("Chờ ");
+  });
 });
 
 describe("trang /admin/orders/[id] - bảng tồn kho (Story 4.5)", () => {
