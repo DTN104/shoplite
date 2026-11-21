@@ -152,6 +152,7 @@ export function createOrderService({
         status: "pending",
         createdAt: createdAt.toISOString(),
         updatedAt: createdAt.toISOString(),
+        statusHistory: [{ status: "pending", at: createdAt.toISOString() }],
         customer: {
           fullName: customer.fullName,
           phone: customer.phone,

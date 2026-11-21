@@ -37,7 +37,15 @@ describe("transitionOrder", () => {
     const input = deepFreeze(orderWith("pending"));
     const next = transitionOrder(input, { actor: "staff", to: "confirmed" }, NOW);
     expect(next).not.toBe(input);
-    expect(next).toEqual({ ...input, status: "confirmed", updatedAt: NOW.toISOString() });
+    expect(next).toEqual({
+      ...input,
+      status: "confirmed",
+      updatedAt: NOW.toISOString(),
+      statusHistory: [
+        { status: "pending", at: input.createdAt },
+        { status: "confirmed", at: NOW.toISOString() },
+      ],
+    });
     expect(input.status).toBe("pending");
   });
 
@@ -76,7 +84,7 @@ describe("transitionOrder", () => {
     );
     expect(offenders).toEqual([]);
     expect(readFileSync(path.join(dir, "order-transitions.ts"), "utf8")).toMatch(
-      /\.\.\.order, status/,
+      /\.\.\.order,\s*status/,
     );
   });
 });

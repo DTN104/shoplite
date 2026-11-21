@@ -345,3 +345,56 @@ describe("transitionByStaff - đơn tồn đọng", () => {
     expect(await service.listOrders(staff)).toHaveLength(11);
   });
 });
+
+describe("statusHistory (Story 5.2)", () => {
+  it("đơn cũ chưa có lịch sử: Xác nhận cho [pending(createdAt), confirmed(now)], bền qua JSON", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "shoplite-hist-"));
+    try {
+      const repo = createJsonFileOrderRepository(path.join(dir, "orders.json"));
+      await repo.save(seeded("SL-A", "pending"));
+      const { service } = make([], 5, repo);
+      await service.transitionByStaff(staff, "SL-A", confirm);
+      const saved = await createJsonFileOrderRepository(path.join(dir, "orders.json")).findById(
+        "SL-A",
+      );
+      expect(saved?.statusHistory).toEqual([
+        { status: "pending", at: "2026-10-01T00:00:00.000Z" },
+        { status: "confirmed", at: NOW.toISOString() },
+      ]);
+      expect(saved?.updatedAt).toBe(NOW.toISOString());
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("Xác nhận -> Đang giao -> Đã giao tạo đúng 3 mục", async () => {
+    const { service } = make([seeded("SL-A", "pending")], 5);
+    await service.transitionByStaff(staff, "SL-A", confirm);
+    await service.transitionByStaff(staff, "SL-A", { from: "confirmed", to: "shipping" });
+    const done = await service.transitionByStaff(staff, "SL-A", {
+      from: "shipping",
+      to: "delivered",
+    });
+    expect(done.statusHistory?.map((e) => e.status)).toEqual([
+      "pending",
+      "confirmed",
+      "shipping",
+      "delivered",
+    ]);
+  });
+
+  it("chuyển thất bại không đổi statusHistory và updatedAt", async () => {
+    const { service, repo } = make([seeded("SL-A", "pending")], 5);
+    await codeOf(service.transitionByStaff(staff, "SL-A", { from: "confirmed", to: "shipping" }));
+    await codeOf(service.transitionByStaff(staff, "SL-X", confirm));
+    const saved = await repo.findById("SL-A");
+    expect(saved?.statusHistory).toBeUndefined();
+    expect(saved?.updatedAt).toBe("2026-10-01T00:00:00.000Z");
+  });
+
+  it("khách hủy cũng nối lịch sử, at của mục cuối bằng updatedAt", async () => {
+    const { service } = make([seeded("SL-A", "pending")], 5);
+    const done = await service.cancelOrder("SL-A");
+    expect(done.statusHistory?.at(-1)).toEqual({ status: "cancelled", at: done.updatedAt });
+  });
+});

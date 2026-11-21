@@ -51,6 +51,11 @@ export interface OrderItem {
   lineTotal: number;
 }
 
+export interface StatusHistoryEntry {
+  status: OrderStatus;
+  at: string;
+}
+
 export interface Order {
   id: string;
   status: OrderStatus;
@@ -67,6 +72,8 @@ export interface Order {
   discount?: number;
   shippingFee: number;
   total: number;
+  /** Mỗi lần đổi trạng thái. Đơn cũ không có: dùng `getTimeline` để suy ra. */
+  statusHistory?: StatusHistoryEntry[];
   /** Ai hủy đơn. Đơn `cancelled` tạo trước Story 5.1 không có trường này = "không rõ". */
   cancelledBy?: CancelledBy;
   /** Lý do nhân viên chọn khi Từ chối; khách tự hủy thì không có. */

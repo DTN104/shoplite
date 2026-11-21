@@ -1,3 +1,4 @@
+import { getTimeline } from "./order-timeline";
 import { OrderError } from "./order-errors";
 import {
   CANCEL_REASONS,
@@ -44,7 +45,14 @@ export function transitionOrder(
         : `Không thể chuyển đơn từ ${ORDER_STATUS_LABELS[order.status]} sang ${ORDER_STATUS_LABELS[command.to]}`,
     );
   }
-  const next = { ...order, status: command.to, updatedAt: now.toISOString() };
+  const at = now.toISOString();
+  const next = {
+    ...order,
+    status: command.to,
+    updatedAt: at,
+    // Mảng mới; vật liệu hóa lịch sử suy ra để đơn cũ không mất mốc "Đặt hàng".
+    statusHistory: [...getTimeline(order), { status: command.to, at }],
+  };
   if (command.to !== "cancelled") return next;
   if (command.actor === "customer") return { ...next, cancelledBy: "customer" };
   // Phòng thủ chiều sâu: Zod đã chặn ở route nhưng service không tin riêng Zod.

@@ -52,5 +52,12 @@ export function maskOrder(order: StoredOrder): MaskedOrder {
   if (phone) recipient.phone = phone;
   if (email) recipient.email = email;
   if (area) recipient.area = area;
-  return { ...rest, items: structuredClone(rest.items) as Order["items"], recipient };
+  const masked: MaskedOrder = {
+    ...rest,
+    items: structuredClone(rest.items) as Order["items"],
+    statusHistory: structuredClone(rest.statusHistory) as Order["statusHistory"],
+    recipient,
+  };
+  if (!rest.statusHistory) delete masked.statusHistory; // đơn cũ: không thêm khóa undefined
+  return masked;
 }

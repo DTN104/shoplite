@@ -53,6 +53,7 @@ describe("orderService", () => {
         id: "SL-TEST-1",
         status: "pending",
         createdAt: FIXED_DATE.toISOString(),
+        statusHistory: [{ status: "pending", at: FIXED_DATE.toISOString() }],
         subtotal: 300_000,
         shippingFee: SHIPPING_OPTIONS.standard.fee,
         total: 330_000,
