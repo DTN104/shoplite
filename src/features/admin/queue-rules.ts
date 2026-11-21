@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@/features/orders/types";
+import type { OrderStatus, StoredOrder } from "@/features/orders/types";
 
 // Lõi thuần của Hàng việc: chỉ import kiểu (AD-1).
 
@@ -25,4 +25,76 @@ export function formatPendingAge(createdAt: string, now: Date): string {
   const days = Math.floor(elapsed / DAY_MS);
   const hours = Math.floor((elapsed % DAY_MS) / HOUR_MS);
   return hours === 0 ? `Chờ ${days} ngày` : `Chờ ${days} ngày ${hours} giờ`;
+}
+
+/** Đơn `pending` chờ quá mức này (so sánh `>`, đồng hồ liên tục) thì quá hạn. */
+export const PENDING_SLA_MS = 4 * HOUR_MS;
+
+/** Số đơn tối đa hiện trong tab Đã xong (số đếm vẫn là tổng). */
+export const DONE_TAB_LIMIT = 50;
+
+export function isOverdue(order: Pick<StoredOrder, "status" | "createdAt">, now: Date): boolean {
+  return (
+    order.status === "pending" &&
+    now.getTime() - new Date(order.createdAt).getTime() > PENDING_SLA_MS
+  );
+}
+
+export interface QueueRow {
+  id: string;
+  status: OrderStatus;
+  createdAt: string;
+  customerName: string;
+  /** Tổng số lượng các món (không phải số dòng). */
+  itemCount: number;
+  total: number;
+  /** Chỉ đơn `pending`, tính ở server lúc render. */
+  ageLabel?: string;
+  overdue: boolean;
+}
+
+/** Hàm duy nhất dựng `QueueRow`. */
+export function toQueueRow(order: StoredOrder, now: Date): QueueRow {
+  return {
+    id: order.id,
+    status: order.status,
+    createdAt: order.createdAt,
+    customerName: order.customer.fullName,
+    itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+    total: order.total,
+    ageLabel: order.status === "pending" ? formatPendingAge(order.createdAt, now) : undefined,
+    overdue: isOverdue(order, now),
+  };
+}
+
+export interface QueueGroup {
+  /** Tổng số đơn của nhóm (Đã xong: không bị cắt ở 50). */
+  count: number;
+  rows: QueueRow[];
+}
+
+const byCreatedAsc = (a: StoredOrder, b: StoredOrder) => a.createdAt.localeCompare(b.createdAt);
+
+/** Chia đơn thành 4 nhóm Hàng việc; không sửa đầu vào. Pending: quá hạn lên trước, mỗi phần cũ nhất trước. */
+export function buildQueue(
+  orders: readonly StoredOrder[],
+  now: Date,
+): Record<AdminTab, QueueGroup> {
+  const pick = (tab: AdminTab) => orders.filter((o) => ADMIN_TAB_BY_STATUS[o.status] === tab);
+  const group = (list: StoredOrder[], limit = list.length): QueueGroup => ({
+    count: list.length,
+    rows: list.slice(0, limit).map((o) => toQueueRow(o, now)),
+  });
+  const pending = pick("pending")
+    .sort(byCreatedAsc)
+    .sort((a, b) => Number(isOverdue(b, now)) - Number(isOverdue(a, now)));
+  return {
+    pending: group(pending),
+    confirmed: group(pick("confirmed").sort(byCreatedAsc)),
+    shipping: group(pick("shipping").sort(byCreatedAsc)),
+    done: group(
+      pick("done").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+      DONE_TAB_LIMIT,
+    ),
+  };
 }
