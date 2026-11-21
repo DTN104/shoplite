@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useState, type ReactNode } from "react";
-import type { OrderStatus } from "@/features/orders/types";
+import type { CancelReason, OrderStatus } from "@/features/orders/types";
 import { type NoticeCode, noticeUrl } from "../admin-notice";
 import { ADMIN_TAB_BY_STATUS } from "../queue-rules";
 import { type TransitionOutcome, useStaffTransition } from "../use-staff-transition";
@@ -11,7 +11,15 @@ import { ErrorBanner } from "./admin-feedback";
 interface OrderActions {
   pending: boolean;
   /** Gửi chuyển trạng thái; thành công thì sang Hàng việc (tab `tab`) kèm StatusNotice. */
-  run(from: OrderStatus, to: OrderStatus, notice: NoticeCode, tab?: string): Promise<void>;
+  run(
+    from: OrderStatus,
+    to: OrderStatus,
+    notice: NoticeCode,
+    tab?: string,
+    reason?: CancelReason,
+  ): Promise<void>;
+  /** Từ chối đơn `pending` với một lý do (Story 5.3). */
+  reject(reason: CancelReason): Promise<void>;
 }
 
 const OrderActionsContext = createContext<OrderActions | null>(null);
@@ -31,9 +39,9 @@ export function OrderActionsProvider({
 
   const actions: OrderActions = {
     pending,
-    async run(from, to, notice, tab = ADMIN_TAB_BY_STATUS[from]) {
+    async run(from, to, notice, tab = ADMIN_TAB_BY_STATUS[from], reason) {
       setError(null);
-      const outcome: TransitionOutcome | undefined = await submit(orderId, from, to);
+      const outcome: TransitionOutcome | undefined = await submit(orderId, from, to, reason);
       if (!outcome) return;
       if (outcome.ok) {
         router.push(noticeUrl(tab, notice, orderId));
@@ -42,6 +50,7 @@ export function OrderActionsProvider({
       setError(outcome.message);
       if (outcome.refresh) router.refresh();
     },
+    reject: (reason) => actions.run("pending", "cancelled", "rejected", undefined, reason),
   };
 
   return (

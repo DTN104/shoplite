@@ -4,6 +4,10 @@ import { noticeUrl, parseNotice } from "./admin-notice";
 const ID = "SL-20261021-ABC123";
 
 describe("parseNotice", () => {
+  it("rejected ra câu Đã từ chối đơn", () => {
+    expect(parseNotice("rejected", ID)).toBe(`Đã từ chối đơn ${ID}`);
+  });
+
   it("confirmed, shipping, delivered ra đúng câu", () => {
     expect(parseNotice("confirmed", ID)).toBe(`Đã xác nhận đơn ${ID}`);
     expect(parseNotice("shipping", ID)).toBe(`Đơn ${ID} đã chuyển sang Đang giao`);
@@ -15,7 +19,7 @@ describe("parseNotice", () => {
     expect(parseNotice("confirmed", "<b>x</b>")).toBeUndefined();
     expect(parseNotice("confirmed", undefined)).toBeUndefined();
     expect(parseNotice(["confirmed"], ID)).toBeUndefined();
-    expect(parseNotice("rejected", ID)).toBeUndefined();
+    expect(parseNotice("shortage", ID)).toBeUndefined();
   });
 
   it("noticeUrl dựng URL hàng việc", () => {

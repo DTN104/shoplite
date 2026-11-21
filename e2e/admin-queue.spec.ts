@@ -98,7 +98,16 @@ test("UJ-1: Xác nhận đơn từ chi tiết, kho giảm; đơn khác hết hà
   await expect(page.getByTestId("stock-short")).toBeVisible();
   const button = page.getByTestId("confirm-order-button");
   await expect(button).toHaveAttribute("aria-disabled", "true");
-  await expect(page.getByText("Có món không đủ hàng.")).toBeVisible();
+  await expect(page.getByText("Có món không đủ hàng, chỉ có thể từ chối đơn.")).toBeVisible();
+
+  // UJ-1 edge: Từ chối vì hết hàng
+  await page.getByTestId("reject-order-button").click();
+  await page.getByRole("radio", { name: "Hết hàng" }).check({ force: true });
+  await page.getByTestId("reject-submit").click();
+  await expect(page).toHaveURL(/\/admin\?tab=pending$/);
+  await expect(page.getByTestId("status-notice")).toHaveText(`Đã từ chối đơn ${second}`);
+  await page.getByTestId("admin-tab-done").click();
+  await expect(page.getByTestId("admin-order-row").filter({ hasText: second })).toBeVisible();
   await context.close();
 });
 

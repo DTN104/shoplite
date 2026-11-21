@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }));
@@ -56,7 +56,10 @@ describe("<ReviewActions />", () => {
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAttribute("aria-label", "Không thể xác nhận đơn: Không đủ hàng");
     expect(button).toHaveTextContent("Không đủ hàng");
-    expect(screen.getByText("Có món không đủ hàng.")).toHaveAttribute("id", "review-short-reason");
+    expect(screen.getByText("Có món không đủ hàng, chỉ có thể từ chối đơn.")).toHaveAttribute(
+      "id",
+      "review-short-reason",
+    );
     expect(button).toHaveAttribute("aria-describedby", "review-short-reason");
     fireEvent.click(button);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -112,5 +115,98 @@ describe("<ReviewActions />", () => {
       ),
     );
     expect(button).toBeEnabled();
+  });
+
+  describe("Từ chối đơn (Story 5.3)", () => {
+    const open = () => {
+      setup();
+      fireEvent.click(screen.getByTestId("reject-order-button"));
+      return screen.getByTestId("reject-reason-panel");
+    };
+
+    it("còn nút Từ chối khi Xác nhận bị khóa vì thiếu hàng", () => {
+      setup(true);
+      expect(screen.getByTestId("reject-order-button")).toBeEnabled();
+    });
+
+    it("mở panel thế chỗ hàng nút, focus radio đầu, ba lý do, nút gửi khóa kèm gợi ý", () => {
+      setup(true);
+      fireEvent.click(screen.getByTestId("reject-order-button"));
+      expect(screen.queryByTestId("confirm-order-button")).not.toBeInTheDocument();
+      expect(screen.queryByText(/chỉ có thể từ chối đơn/)).not.toBeInTheDocument();
+      const panel = screen.getByTestId("reject-reason-panel");
+      expect(within(panel).getByText("Lý do từ chối")).toBeInTheDocument();
+      const radios = within(panel).getAllByRole("radio");
+      expect(radios.map((r) => (r as HTMLInputElement).value)).toEqual([
+        "out_of_stock",
+        "customer_cancelled",
+        "unreachable",
+      ]);
+      expect(radios[0]).toHaveFocus();
+      const submit = screen.getByTestId("reject-submit");
+      expect(submit).toBeDisabled();
+      expect(submit).toHaveAccessibleDescription("Chọn một lý do để từ chối");
+    });
+
+    it("chọn lý do rồi gửi { from, to, reason }, về Hàng việc với notice rejected", async () => {
+      reply(200, {});
+      open();
+      fireEvent.click(screen.getByRole("radio", { name: "Hết hàng" }));
+      const submit = screen.getByTestId("reject-submit");
+      expect(submit).toBeEnabled();
+      fireEvent.click(submit);
+      expect(submit).toBeDisabled();
+      expect(submit).toHaveTextContent("Đang từ chối…");
+      await waitFor(() =>
+        expect(router.push).toHaveBeenCalledWith(`/admin?tab=pending&notice=rejected&order=${ID}`),
+      );
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+        from: "pending",
+        to: "cancelled",
+        reason: "out_of_stock",
+      });
+    });
+
+    it("Thôi: đóng panel, focus về nút Từ chối, mở lại không còn lựa chọn cũ", async () => {
+      open();
+      fireEvent.click(screen.getByRole("radio", { name: "Khách hủy" }));
+      fireEvent.click(screen.getByRole("button", { name: "Thôi" }));
+      expect(screen.queryByTestId("reject-reason-panel")).not.toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId("reject-order-button")).toHaveFocus());
+      fireEvent.click(screen.getByTestId("reject-order-button"));
+      expect(screen.getAllByRole("radio").some((r) => (r as HTMLInputElement).checked)).toBe(false);
+    });
+
+    it("409: banner, tải lại; lỗi khác: giữ panel và lựa chọn", async () => {
+      reply(409, {
+        error: { code: "ORDER_STATUS_CONFLICT", message: "Đơn đã được cập nhật ở nơi khác" },
+      });
+      open();
+      fireEvent.click(screen.getByRole("radio", { name: "Không liên lạc được" }));
+      fireEvent.click(screen.getByTestId("reject-submit"));
+      expect(await screen.findByTestId("conflict-banner")).toHaveTextContent(
+        "Đơn đã được cập nhật ở nơi khác",
+      );
+      expect(router.refresh).toHaveBeenCalledOnce();
+
+      reply(500, { error: { code: "INTERNAL_ERROR", message: "x" } });
+      fireEvent.click(screen.getByTestId("reject-submit"));
+      await waitFor(() =>
+        expect(screen.getByTestId("conflict-banner")).toHaveTextContent("Đã có lỗi xảy ra"),
+      );
+      expect(screen.getByTestId("reject-reason-panel")).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "Không liên lạc được" })).toBeChecked();
+      expect(screen.getByTestId("reject-submit")).toBeEnabled();
+    });
+
+    it("radio cùng name: chọn cái khác bỏ cái trước (điều hướng mũi tên của radiogroup native)", () => {
+      open();
+      const radios = screen.getAllByRole("radio");
+      expect(new Set(radios.map((r) => (r as HTMLInputElement).name)).size).toBe(1);
+      fireEvent.click(radios[0]);
+      fireEvent.click(radios[1]);
+      expect(radios[0]).not.toBeChecked();
+      expect(radios[1]).toBeChecked();
+    });
   });
 });

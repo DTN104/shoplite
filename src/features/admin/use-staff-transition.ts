@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { ApiErrorBody } from "@/lib/http";
-import type { OrderStatus } from "@/features/orders/types";
+import type { CancelReason, OrderStatus } from "@/features/orders/types";
 
 const SERVER_ERROR_MESSAGE = "Đã có lỗi xảy ra, vui lòng thử lại sau";
 const NETWORK_ERROR_MESSAGE = "Không kết nối được máy chủ, vui lòng thử lại.";
@@ -26,6 +26,7 @@ export function useStaffTransition({ holdOnSuccess = false } = {}) {
       id: string,
       from: OrderStatus,
       to: OrderStatus,
+      reason?: CancelReason,
     ): Promise<TransitionOutcome | undefined> => {
       setPending(true);
       let succeeded = false;
@@ -33,7 +34,7 @@ export function useStaffTransition({ holdOnSuccess = false } = {}) {
         const response = await fetch(`/api/admin/orders/${encodeURIComponent(id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ from, to }),
+          body: JSON.stringify(reason ? { from, to, reason } : { from, to }),
         });
         if (response.ok) {
           succeeded = true; // holdOnSuccess: giữ `pending` đến khi chuyển trang, chặn bấm đúp
