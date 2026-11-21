@@ -26,6 +26,7 @@ import {
   appliedCouponStore,
   useAppliedCouponStatus,
 } from "@/features/coupons/applied-coupon-store";
+import { addRecentOrder } from "@/features/order-access/recent-orders-store";
 import { CouponField } from "@/features/coupons/components/coupon-field";
 import type { ApiErrorBody } from "@/lib/http";
 import { cn } from "@/lib/cn";
@@ -152,6 +153,7 @@ export function CheckoutForm() {
 
       const order = (await response.json()) as { id: string };
       setStatus("redirecting");
+      addRecentOrder(order.id); // ngay lúc đặt thành công, không đợi trang đơn
       clear();
       appliedCouponStore.clear();
       router.push(`/orders/${order.id}`);
