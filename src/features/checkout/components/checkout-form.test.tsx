@@ -83,6 +83,7 @@ describe("<CheckoutForm />", () => {
     });
     expect(push).toHaveBeenCalledWith("/orders/SL-20261021-ABC123");
     expect(cartStore.getSnapshot().items).toEqual([]);
+    expect(localStorage.getItem("shoplite:recent-orders")).toBe('["SL-20261021-ABC123"]');
   });
 
   it("hiển thị thông báo lỗi từ server, đồng bộ lại tồn và không khóa nút đặt hàng", async () => {
@@ -108,6 +109,7 @@ describe("<CheckoutForm />", () => {
     expect(cartStore.getSnapshot().items[0].quantity).toBe(2);
     expect(screen.getByRole("button", { name: "Đặt hàng" })).toBeEnabled();
     expect(push).not.toHaveBeenCalled();
+    expect(localStorage.getItem("shoplite:recent-orders")).toBeNull(); // đặt thất bại không ghi
   });
 
   describe("mã giảm giá", () => {

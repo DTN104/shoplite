@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import type { ApiErrorBody } from "@/lib/http";
@@ -15,16 +15,32 @@ const inputClass =
 
 type FieldErrors = { orderId?: string; verification?: string };
 
-export function OrderLookupForm({ initialOrderId = "" }: { initialOrderId?: string }) {
+interface OrderLookupFormProps {
+  initialOrderId?: string;
+  /** Bao ngoài có thể giữ giá trị ô Mã đơn và ref ô xác minh (Story 6.3); không truyền thì tự quản. */
+  orderId?: string;
+  onOrderIdChange?: (value: string) => void;
+  verificationRef?: RefObject<HTMLInputElement | null>;
+}
+
+export function OrderLookupForm({
+  initialOrderId = "",
+  orderId: controlledOrderId,
+  onOrderIdChange,
+  verificationRef: sharedVerificationRef,
+}: OrderLookupFormProps) {
   const router = useRouter();
   const hydrated = useHydrated();
-  const [orderId, setOrderId] = useState(initialOrderId);
+  const [ownOrderId, setOwnOrderId] = useState(initialOrderId);
+  const orderId = controlledOrderId ?? ownOrderId;
+  const setOrderId = onOrderIdChange ?? setOwnOrderId;
   const [verification, setVerification] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [banner, setBanner] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const orderRef = useRef<HTMLInputElement>(null);
-  const verificationRef = useRef<HTMLInputElement>(null);
+  const ownVerificationRef = useRef<HTMLInputElement>(null);
+  const verificationRef = sharedVerificationRef ?? ownVerificationRef;
   const bannerRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {

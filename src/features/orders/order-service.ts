@@ -2,7 +2,13 @@ import { MAX_QUANTITY_PER_ITEM } from "@/features/cart/cart-reducer";
 import { buildCatalogHref, parseCatalogQuery } from "@/features/catalog/catalog-rules";
 import { getProductById } from "@/features/catalog/catalog-data";
 import type { Product } from "@/features/catalog/types";
-import { placeOrderSchema, toFieldErrors } from "@/features/checkout/checkout-schema";
+import {
+  placeOrderSchema,
+  toFieldErrors,
+  VN_PHONE_REGEX,
+} from "@/features/checkout/checkout-schema";
+import { toQueueRow, type QueueRow } from "@/features/admin/queue-rules";
+import { normalizePhone } from "@/features/order-access/phone";
 import { calculateOrderTotals, calculateSubtotal } from "@/features/checkout/pricing";
 import { toCouponOrderError } from "@/features/coupons/coupon-errors";
 import { evaluateCoupon } from "@/features/coupons/coupon-rules";
@@ -208,6 +214,21 @@ export function createOrderService({
     async listOrders(_ctx: AdminContext): Promise<StoredOrder[]> {
       const orders = await repository.findAll();
       return [...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    },
+
+    /**
+     * Tìm đơn theo SĐT (khớp chính xác sau `normalizePhone`), mọi trạng thái, mới nhất trước.
+     * Trả QueueRow (không PII); SĐT không hợp lệ thì rỗng, không lỗi.
+     */
+    async searchByPhone(_ctx: AdminContext, phone: string): Promise<QueueRow[]> {
+      const wanted = normalizePhone(phone);
+      if (!VN_PHONE_REGEX.test(wanted)) return [];
+      const at = now();
+      const orders = await repository.findAll();
+      return orders
+        .filter((o) => normalizePhone(o.customer.phone) === wanted)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((o) => toQueueRow(o, at));
     },
 
     /** Đơn đầy đủ cho nhân viên. Không có hàm tương đương cho khách: khách chỉ nhận MaskedOrder. */
