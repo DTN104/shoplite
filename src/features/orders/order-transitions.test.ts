@@ -25,6 +25,7 @@ const orderWith = (status: OrderStatus): Order => ({
 const ALLOWED: Record<TransitionActor, [OrderStatus, OrderStatus][]> = {
   staff: [
     ["pending", "confirmed"],
+    ["pending", "cancelled"],
     ["confirmed", "shipping"],
     ["shipping", "delivered"],
   ],
@@ -45,7 +46,12 @@ describe("transitionOrder", () => {
       for (const to of ORDER_STATUSES) {
         const ok = ALLOWED[actor].some(([f, t]) => f === from && t === to);
         it(`${actor}: ${from} -> ${to} ${ok ? "thành công" : "bị 409 INVALID_STATUS_TRANSITION"}`, () => {
-          const run = () => transitionOrder(orderWith(from), { actor, to }, NOW);
+          const run = () =>
+            transitionOrder(
+              orderWith(from),
+              { actor, to, reason: actor === "staff" ? "out_of_stock" : undefined },
+              NOW,
+            );
           if (ok) return expect(run().status).toBe(to);
           expect(run).toThrow(OrderError);
           try {

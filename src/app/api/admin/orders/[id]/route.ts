@@ -28,9 +28,8 @@ export async function PATCH(request: Request, route: RouteContext<"/api/admin/or
       );
     }
     const { id } = await route.params;
-    const { from, to } = parsed.data;
     return NextResponse.json(
-      await orderService.transitionByStaff(ctx, canonicalOrderId(id), { from, to }),
+      await orderService.transitionByStaff(ctx, canonicalOrderId(id), parsed.data),
     );
   } catch (error) {
     return handleRouteError(error);

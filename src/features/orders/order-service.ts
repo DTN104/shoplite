@@ -14,15 +14,14 @@ import type { AdminContext } from "@/features/admin/admin-guard";
 import { OrderError, ORDER_STATUS_CONFLICT_MESSAGE } from "./order-errors";
 import type { OrderRepository } from "./order-repository";
 import { transitionOrder } from "./order-transitions";
-import type { Order, OrderItem, OrderStatus, StoredOrder } from "./types";
+import type { CancelReason, Order, OrderItem, OrderStatus, StoredOrder } from "./types";
 
 const MAX_ID_ATTEMPTS = 3;
 
 /** Trạng thái kỳ vọng + đích nhân viên gửi (đã qua order-admin-schema ở route). */
-export interface StaffTransitionInput {
-  from: OrderStatus;
-  to: OrderStatus;
-}
+export type StaffTransitionInput =
+  | { from: OrderStatus; to: Exclude<OrderStatus, "cancelled"> }
+  | { from: OrderStatus; to: "cancelled"; reason: CancelReason };
 
 export interface OrderServiceDeps {
   repository: OrderRepository;
@@ -221,7 +220,11 @@ export function createOrderService({
         if (order.status !== input.from) {
           throw new OrderError("ORDER_STATUS_CONFLICT", ORDER_STATUS_CONFLICT_MESSAGE);
         }
-        const next = transitionOrder(order, { actor: "staff", to: input.to }, now());
+        const next = transitionOrder(
+          order,
+          { actor: "staff", to: input.to, reason: "reason" in input ? input.reason : undefined },
+          now(),
+        );
         if (input.to === "confirmed") {
           // Sản phẩm không còn trong catalog có Tồn gốc 0 (AD-4).
           const bases = order.items.map(({ productId }) => ({

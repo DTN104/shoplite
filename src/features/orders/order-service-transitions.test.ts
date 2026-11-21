@@ -99,7 +99,6 @@ describe("transitionByStaff - cặp hợp lệ", () => {
   });
 
   it.each<[OrderStatus, OrderStatus]>([
-    ["pending", "cancelled"],
     ["confirmed", "cancelled"],
     ["pending", "shipping"],
     ["pending", "delivered"],
@@ -112,7 +111,8 @@ describe("transitionByStaff - cặp hợp lệ", () => {
     ["pending", "pending"],
   ])("nhân viên %s -> %s bị 409 INVALID_STATUS_TRANSITION, đơn không đổi", async (from, to) => {
     const { service, repo } = make([seeded("SL-A", from)], 5);
-    const error = await codeOf(service.transitionByStaff(staff, "SL-A", { from, to }));
+    const input = to === "cancelled" ? { from, to, reason: "out_of_stock" as const } : { from, to };
+    const error = await codeOf(service.transitionByStaff(staff, "SL-A", input));
     expect(error.code).toBe("INVALID_STATUS_TRANSITION");
     expect(error.httpStatus).toBe(409);
     expect((await repo.findById("SL-A"))?.status).toBe(from);
@@ -120,7 +120,82 @@ describe("transitionByStaff - cặp hợp lệ", () => {
 
   it("khách vẫn hủy được đơn pending qua cancelOrder (gọi transitionOrder)", async () => {
     const { service } = make([seeded("SL-A", "pending")], 5);
-    expect((await service.cancelOrder("SL-A")).status).toBe("cancelled");
+    const cancelled = await service.cancelOrder("SL-A");
+    expect(cancelled.status).toBe("cancelled");
+    expect(cancelled.cancelledBy).toBe("customer");
+    expect(cancelled.cancelReason).toBeUndefined();
+  });
+});
+
+describe("transitionByStaff - Từ chối đơn (Story 5.1)", () => {
+  it.each(["out_of_stock", "customer_cancelled", "unreachable"] as const)(
+    "Từ chối pending với lý do %s: cancelledBy staff, tồn không đổi",
+    async (reason) => {
+      const { service, repo } = make([seeded("SL-A", "pending", 2)], 5);
+      const done = await service.transitionByStaff(staff, "SL-A", {
+        from: "pending",
+        to: "cancelled",
+        reason,
+      });
+      expect(done).toMatchObject({
+        status: "cancelled",
+        cancelledBy: "staff",
+        cancelReason: reason,
+        updatedAt: NOW.toISOString(),
+      });
+      expect(await stockOf(repo, 5)).toBe(5);
+    },
+  );
+
+  it("service tự kiểm lý do (thiếu hoặc ngoài danh sách): 400 VALIDATION_ERROR, đơn không đổi", async () => {
+    const { service, repo } = make([seeded("SL-A", "pending")], 5);
+    for (const reason of [undefined, "khac"]) {
+      const error = await codeOf(
+        service.transitionByStaff(staff, "SL-A", {
+          from: "pending",
+          to: "cancelled",
+          reason,
+        } as never),
+      );
+      expect(error.code).toBe("VALIDATION_ERROR");
+      expect(error.details).toHaveProperty("reason");
+    }
+    expect((await repo.findById("SL-A"))?.status).toBe("pending");
+  });
+
+  it("đơn cancelled cũ thiếu cancelledBy vẫn đọc được qua getOrderForStaff", async () => {
+    const { service } = make([seeded("SL-OLD", "cancelled")], 5);
+    const order = await service.getOrderForStaff(staff, "SL-OLD");
+    expect(order.status).toBe("cancelled");
+    expect(order.cancelledBy).toBeUndefined();
+    expect((await service.getMaskedOrder("SL-OLD")).cancelledBy).toBeUndefined();
+  });
+
+  it("Xác nhận và Từ chối đồng thời: đúng một thắng, một bên 409, không có confirmed kèm cancelReason", async () => {
+    const { service, repo } = make([seeded("SL-A", "pending")], 5);
+    const results = await Promise.allSettled([
+      service.transitionByStaff(staff, "SL-A", confirm),
+      service.transitionByStaff(staff, "SL-A", {
+        from: "pending",
+        to: "cancelled",
+        reason: "unreachable",
+      }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect((rejected.reason as OrderError).code).toBe("ORDER_STATUS_CONFLICT");
+    const saved = await repo.findById("SL-A");
+    expect(saved?.status === "confirmed" && saved.cancelReason).toBeFalsy();
+  });
+
+  it("Hai nhân viên cùng Từ chối: một thành công, một 409", async () => {
+    const { service } = make([seeded("SL-A", "pending")], 5);
+    const reject = { from: "pending", to: "cancelled", reason: "out_of_stock" } as const;
+    const results = await Promise.allSettled([
+      service.transitionByStaff(staff, "SL-A", reject),
+      service.transitionByStaff(staff, "SL-A", reject),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
   });
 });
 

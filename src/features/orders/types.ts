@@ -20,6 +20,18 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: "Đã hủy",
 };
 
+/** Lý do hủy: mã cố định, không nhập tự do (không chứa PII nên khách xem được). */
+export const CANCEL_REASONS = ["out_of_stock", "customer_cancelled", "unreachable"] as const;
+export type CancelReason = (typeof CANCEL_REASONS)[number];
+
+export const CANCEL_REASON_LABELS: Record<CancelReason, string> = {
+  out_of_stock: "Hết hàng",
+  customer_cancelled: "Khách hủy",
+  unreachable: "Không liên lạc được",
+};
+
+export type CancelledBy = "customer" | "staff";
+
 export interface OrderCustomer {
   fullName: string;
   phone: string;
@@ -55,6 +67,10 @@ export interface Order {
   discount?: number;
   shippingFee: number;
   total: number;
+  /** Ai hủy đơn. Đơn `cancelled` tạo trước Story 5.1 không có trường này = "không rõ". */
+  cancelledBy?: CancelledBy;
+  /** Lý do nhân viên chọn khi Từ chối; khách tự hủy thì không có. */
+  cancelReason?: CancelReason;
   /** Điều chỉnh tồn trên đơn đã hủy (Epic 5 ghi): số lượng không hồi lại kho. */
   stockAdjustment?: { productId: string; quantity: number };
 }

@@ -1,5 +1,11 @@
 import { OrderError } from "./order-errors";
-import { ORDER_STATUS_LABELS, type OrderStatus, type StoredOrder } from "./types";
+import {
+  CANCEL_REASONS,
+  ORDER_STATUS_LABELS,
+  type CancelReason,
+  type OrderStatus,
+  type StoredOrder,
+} from "./types";
 
 /** Người thao tác: nhân viên đi tiến từng bước; khách chỉ được hủy đơn đang chờ. */
 export type TransitionActor = "staff" | "customer";
@@ -7,16 +13,18 @@ export type TransitionActor = "staff" | "customer";
 export interface TransitionCommand {
   actor: TransitionActor;
   to: OrderStatus;
+  /** Bắt buộc khi nhân viên hủy (`to: "cancelled"`); khách tự hủy không có lý do. */
+  reason?: CancelReason;
 }
 
 /** Bảng cặp hợp lệ theo người thao tác. `delivered` và `cancelled` là trạng thái cuối. */
-const VALID_TARGETS: Record<TransitionActor, Partial<Record<OrderStatus, OrderStatus>>> = {
-  staff: { pending: "confirmed", confirmed: "shipping", shipping: "delivered" },
-  customer: { pending: "cancelled" },
+const VALID_TARGETS: Record<TransitionActor, Partial<Record<OrderStatus, OrderStatus[]>>> = {
+  staff: { pending: ["confirmed", "cancelled"], confirmed: ["shipping"], shipping: ["delivered"] },
+  customer: { pending: ["cancelled"] },
 };
 
 export function isValidTransition(actor: TransitionActor, from: OrderStatus, to: OrderStatus) {
-  return VALID_TARGETS[actor][from] === to;
+  return VALID_TARGETS[actor][from]?.includes(to) ?? false;
 }
 
 /**
@@ -36,5 +44,14 @@ export function transitionOrder(
         : `Không thể chuyển đơn từ ${ORDER_STATUS_LABELS[order.status]} sang ${ORDER_STATUS_LABELS[command.to]}`,
     );
   }
-  return { ...order, status: command.to, updatedAt: now.toISOString() };
+  const next = { ...order, status: command.to, updatedAt: now.toISOString() };
+  if (command.to !== "cancelled") return next;
+  if (command.actor === "customer") return { ...next, cancelledBy: "customer" };
+  // Phòng thủ chiều sâu: Zod đã chặn ở route nhưng service không tin riêng Zod.
+  if (!command.reason || !CANCEL_REASONS.includes(command.reason)) {
+    throw new OrderError("VALIDATION_ERROR", "Thông tin chuyển trạng thái không hợp lệ", {
+      reason: "Chọn một lý do hợp lệ",
+    });
+  }
+  return { ...next, cancelledBy: "staff", cancelReason: command.reason };
 }

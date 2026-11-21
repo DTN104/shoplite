@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toFieldErrors } from "@/features/checkout/checkout-schema";
-import { ORDER_STATUSES } from "@/features/orders/types";
+import { CANCEL_REASONS, ORDER_STATUSES } from "@/features/orders/types";
 import { staffTransitionSchema } from "./order-admin-schema";
 
 const errorsOf = (input: unknown) => {
@@ -10,9 +10,9 @@ const errorsOf = (input: unknown) => {
 };
 
 describe("staffTransitionSchema", () => {
-  it("hợp lệ với mọi cặp from/to thuộc ORDER_STATUSES (tính hợp lệ của cặp thuộc về service)", () => {
+  it("hợp lệ với mọi cặp from/to thuộc ORDER_STATUSES trừ cancelled (cần reason; tính hợp lệ của cặp thuộc về service)", () => {
     for (const from of ORDER_STATUSES) {
-      for (const to of ORDER_STATUSES) {
+      for (const to of ORDER_STATUSES.filter((s) => s !== "cancelled")) {
         expect(staffTransitionSchema.safeParse({ from, to }).success).toBe(true);
       }
     }
@@ -29,6 +29,18 @@ describe("staffTransitionSchema", () => {
 
   it("from ngoài danh sách: lỗi theo trường from", () => {
     expect(errorsOf({ from: "rejected", to: "confirmed" })).toHaveProperty("from");
+  });
+
+  it("to cancelled: reason bắt buộc và thuộc ba mã cố định", () => {
+    expect(errorsOf({ from: "pending", to: "cancelled" })).toHaveProperty("reason");
+    expect(errorsOf({ from: "pending", to: "cancelled", reason: "khac" })).toHaveProperty("reason");
+    for (const reason of CANCEL_REASONS) {
+      expect(staffTransitionSchema.parse({ from: "pending", to: "cancelled", reason })).toEqual({
+        from: "pending",
+        to: "cancelled",
+        reason,
+      });
+    }
   });
 
   it("body không phải object: lỗi, không ném", () => {

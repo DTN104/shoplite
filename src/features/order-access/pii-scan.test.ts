@@ -50,7 +50,7 @@ const orderBody = {
 const clean = (label: string, text: string, headers?: Headers) => {
   const haystack = text + (headers ? [...headers].map(([k, v]) => `${k}: ${v}`).join("\n") : "");
   for (const value of PII) expect(haystack, `${label} lộ "${value}"`).not.toContain(value);
-  expect(haystack, `${label} có khóa customer`).not.toMatch(/"customer"/);
+  expect(haystack, `${label} có khóa customer`).not.toMatch(/"customer"\s*:/);
 };
 const scan = async (label: string, response: Response) =>
   clean(label, await response.text(), response.headers);
