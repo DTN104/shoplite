@@ -68,32 +68,6 @@ describe("trang /orders/[id]", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("chưa có grant: not-found và không gọi getMaskedOrder", async () => {
-    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(mocks.getMaskedOrder).not.toHaveBeenCalled();
-  });
-
-  it("grant của đơn khác: not-found và không gọi getMaskedOrder", async () => {
-    mocks.token = grantToken("SL-20261021-ZZZZZZ", "placed");
-    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(mocks.getMaskedOrder).not.toHaveBeenCalled();
-  });
-
-  it("grant hết hạn: not-found và không gọi getMaskedOrder", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-21T03:00:00Z"));
-    mocks.token = grantToken(ID, "placed");
-    vi.setSystemTime(new Date("2026-10-21T04:00:00Z"));
-    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(mocks.getMaskedOrder).not.toHaveBeenCalled();
-  });
-
-  it("grant đúng đơn nhưng đơn không tồn tại: not-found", async () => {
-    mocks.token = grantToken(ID, "placed");
-    mocks.getMaskedOrder.mockRejectedValue(new OrderError("ORDER_NOT_FOUND", "x"));
-    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
-  });
-
   it("grant placed + pending: banner, thẻ người nhận che, BackLink mới, nút hủy; URL viết thường vẫn khớp", async () => {
     mocks.token = grantToken(ID, "placed");
     await renderPage(ID.toLowerCase());

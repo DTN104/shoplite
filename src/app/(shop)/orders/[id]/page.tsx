@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { BackLink } from "@/components/ui/back-link";
 import { ProductImage } from "@/features/catalog/components/product-image";
 import { PAYMENT_OPTIONS } from "@/features/checkout/checkout-schema";
@@ -11,6 +10,8 @@ import { OrderStatusBadge } from "@/features/orders/components/order-status-badg
 import { OrderSuccessBanner } from "@/features/orders/components/order-success-banner";
 import { OrderTotals } from "@/features/orders/components/order-totals";
 import { MaskedRecipientCard } from "@/features/order-access/components/masked-recipient-card";
+import { OrderLookupPanel } from "@/features/order-access/components/order-lookup-panel";
+import { canonicalOrderId } from "@/features/order-access/order-id";
 import { getGrant, GRANT_COOKIE_NAME } from "@/features/order-access/order-grant";
 import type { MaskedOrder } from "@/features/order-access/mask-order";
 import { OrderError } from "@/features/orders/order-errors";
@@ -28,18 +29,32 @@ async function findOrder(id: string): Promise<MaskedOrder | null> {
   }
 }
 
+function safeCanonicalId(id: string): string {
+  try {
+    return canonicalOrderId(decodeURIComponent(id));
+  } catch {
+    return "";
+  }
+}
+
 export async function generateMetadata({ params }: PageProps<"/orders/[id]">): Promise<Metadata> {
   return { title: `Đơn hàng ${(await params).id}` };
 }
 
 export default async function OrderDetailPage({ params }: PageProps<"/orders/[id]">) {
   const { id } = await params;
-  // Đọc grant trước khi chạm dữ liệu đơn; tạm thời (đến Story 2.5) không có grant thì 404 như URL lạ
+  // Không grant: form tra cứu (HTTP 200) giống hệt cho id có và không có đơn, không lộ đơn tồn tại
   const token = (await cookies()).get(GRANT_COOKIE_NAME)?.value;
   const grant = getGrant(token, id);
-  if (!grant) notFound();
-  const order = await findOrder(id);
-  if (!order) notFound();
+  const order = grant ? await findOrder(id) : null;
+  if (!grant || !order) {
+    return (
+      <OrderLookupPanel
+        description="Nhập 4 số cuối số điện thoại để xem đơn này."
+        initialOrderId={safeCanonicalId(id)}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
