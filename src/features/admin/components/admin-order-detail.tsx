@@ -3,10 +3,12 @@ import { ProductImage } from "@/features/catalog/components/product-image";
 import { PAYMENT_OPTIONS } from "@/features/checkout/checkout-schema";
 import { SHIPPING_OPTIONS } from "@/features/checkout/pricing";
 import { OrderStatusBadge } from "@/features/orders/components/order-status-badge";
+import { OrderTimeline } from "@/features/orders/components/order-timeline";
+import { getTimelineView } from "@/features/orders/order-timeline";
 import { OrderTotals } from "@/features/orders/components/order-totals";
 import type { StoredOrder } from "@/features/orders/types";
 import { formatCurrency, formatDateTime } from "@/lib/format";
-import { ADMIN_TAB_BY_STATUS, formatPendingAge, isOverdue } from "../queue-rules";
+import { ADMIN_TAB_BY_STATUS, formatPendingAge, getCancelLabel, isOverdue } from "../queue-rules";
 import { PendingAge } from "./pending-age";
 import { OrderActionError, OrderActionsProvider } from "./order-actions";
 import { ReviewActions } from "./review-actions";
@@ -41,6 +43,7 @@ export function AdminOrderDetail({ order, now, stock, pendingOthers = {} }: Admi
           </div>
           <p className="mt-1 text-sm text-slate-600">
             Đặt lúc {formatDateTime(order.createdAt)}
+            {getCancelLabel(order) && ` · ${getCancelLabel(order)}`}
             {order.status === "pending" && (
               <>
                 {" "}
@@ -98,6 +101,8 @@ export function AdminOrderDetail({ order, now, stock, pendingOthers = {} }: Admi
             </p>
           </div>
         </section>
+
+        <OrderTimeline title="Lịch sử trạng thái" entries={getTimelineView(order)} />
       </div>
     </OrderActionsProvider>
   );

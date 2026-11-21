@@ -1,4 +1,4 @@
-import type { OrderStatus, StoredOrder } from "@/features/orders/types";
+import { CANCEL_REASON_LABELS, type OrderStatus, type StoredOrder } from "@/features/orders/types";
 
 // Lõi thuần của Hàng việc: chỉ import kiểu (AD-1).
 
@@ -75,6 +75,20 @@ export interface QueueRow {
   /** Chỉ đơn `pending`, tính ở server lúc render. */
   ageLabel?: string;
   overdue: boolean;
+  /** Chỉ đơn `cancelled` biết người hủy: "Từ chối · Hết hàng" / "Khách tự hủy". */
+  cancelLabel?: string;
+}
+
+/** Nhãn người hủy; "Từ chối · Khách hủy" (nhân viên chọn) khác "Khách tự hủy" (khách thao tác). Đơn cũ thiếu `cancelledBy`: không nhãn. */
+export function getCancelLabel(
+  order: Pick<StoredOrder, "status" | "cancelledBy" | "cancelReason">,
+): string | undefined {
+  if (order.status !== "cancelled") return undefined;
+  if (order.cancelledBy === "customer") return "Khách tự hủy";
+  if (order.cancelledBy === "staff" && order.cancelReason) {
+    return `Từ chối · ${CANCEL_REASON_LABELS[order.cancelReason]}`;
+  }
+  return undefined;
 }
 
 /** Hàm duy nhất dựng `QueueRow`. */
@@ -88,6 +102,7 @@ export function toQueueRow(order: StoredOrder, now: Date): QueueRow {
     total: order.total,
     ageLabel: order.status === "pending" ? formatPendingAge(order.createdAt, now) : undefined,
     overdue: isOverdue(order, now),
+    cancelLabel: getCancelLabel(order),
   };
 }
 

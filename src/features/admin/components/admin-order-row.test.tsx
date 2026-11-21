@@ -48,4 +48,27 @@ describe("<AdminOrderRow />", () => {
     );
     expect(screen.queryByText(/^Chờ/)).not.toBeInTheDocument();
   });
+
+  it("đơn hủy: hàng 2 thêm nhãn sau số sản phẩm; đơn cũ không thêm gì", () => {
+    const done = { ...ROW, status: "cancelled" as const, ageLabel: undefined };
+    const { rerender } = render(
+      <ul>
+        <AdminOrderRow row={{ ...done, cancelLabel: "Từ chối · Hết hàng" }} />
+      </ul>,
+    );
+    expect(screen.getByText(/5 sản phẩm · Từ chối · Hết hàng/)).toBeInTheDocument();
+    rerender(
+      <ul>
+        <AdminOrderRow row={{ ...done, cancelLabel: "Khách tự hủy" }} />
+      </ul>,
+    );
+    expect(screen.getByText(/5 sản phẩm · Khách tự hủy/)).toBeInTheDocument();
+    rerender(
+      <ul>
+        <AdminOrderRow row={done} />
+      </ul>,
+    );
+    expect(screen.getByText(/5 sản phẩm$/)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
 });

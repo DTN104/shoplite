@@ -59,6 +59,16 @@ test("nhân viên từ chối vì hết hàng: khách thấy lý do và link dan
     "/products?category=phu-kien",
   );
   await expect(page.getByTestId("timeline-entry")).toHaveCount(2);
+
+  const staffPage = await staff.newPage();
+  await staffPage.goto(`/admin/orders/${id}`);
+  await expect(staffPage.getByText(/Đặt lúc .* · Từ chối · Hết hàng/)).toBeVisible();
+  await expect(staffPage.getByRole("heading", { name: "Lịch sử trạng thái" })).toBeVisible();
+  await expect(staffPage.getByTestId("timeline-entry").first()).toContainText("Đã hủy");
+  await staffPage.goto("/admin?tab=done");
+  await expect(staffPage.getByTestId("admin-order-row").filter({ hasText: id })).toContainText(
+    "Từ chối · Hết hàng",
+  );
   await staff.close();
   await customer.close();
 });

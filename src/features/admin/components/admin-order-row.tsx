@@ -40,6 +40,7 @@ export function AdminOrderRow({
       </div>
       <p className={cn("mt-1 text-sm", row.overdue ? "text-slate-600" : "text-slate-500")}>
         {formatDateTime(row.createdAt)} · {row.customerName} · {row.itemCount} sản phẩm
+        {row.cancelLabel && ` · ${row.cancelLabel}`}
       </p>
       {onStep && isStepStatus(row.status) && (
         <div className="mt-3 flex sm:justify-end">

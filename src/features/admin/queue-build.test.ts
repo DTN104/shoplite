@@ -63,6 +63,25 @@ describe("toQueueRow", () => {
   });
 });
 
+describe("toQueueRow - nhãn người hủy (Story 5.4)", () => {
+  const now = new Date(t(1));
+  const cancelled = (extra: Record<string, unknown>) =>
+    deepFreeze({ ...makeOrder("X", "cancelled", CREATED), ...extra }) as unknown as StoredOrder;
+
+  it.each([
+    [{ cancelledBy: "staff", cancelReason: "out_of_stock" }, "Từ chối · Hết hàng"],
+    [{ cancelledBy: "staff", cancelReason: "customer_cancelled" }, "Từ chối · Khách hủy"],
+    [{ cancelledBy: "customer" }, "Khách tự hủy"],
+    [{}, undefined],
+  ])("đơn hủy %j -> %s", (extra, label) => {
+    expect(toQueueRow(cancelled(extra), now).cancelLabel).toBe(label);
+  });
+
+  it("đơn không hủy không có nhãn", () => {
+    expect(toQueueRow(makeOrder("A", "delivered", CREATED), now).cancelLabel).toBeUndefined();
+  });
+});
+
 describe("buildQueue", () => {
   const now = new Date(t(10));
   const orders = [
