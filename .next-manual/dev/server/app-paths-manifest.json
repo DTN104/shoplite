@@ -1,0 +1,10 @@
+{
+  "/(shop)/cart/page": "app/(shop)/cart/page.js",
+  "/(shop)/orders/page": "app/(shop)/orders/page.js",
+  "/(shop)/page": "app/(shop)/page.js",
+  "/(shop)/products/page": "app/(shop)/products/page.js",
+  "/admin/login/page": "app/admin/login/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/api/admin/login/route": "app/api/admin/login/route.js",
+  "/api/admin/logout/route": "app/api/admin/logout/route.js"
+}

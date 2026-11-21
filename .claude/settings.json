@@ -15,7 +15,10 @@
       "Bash(git status)",
       "Bash(git diff *)",
       "Bash(git log *)",
-      "Bash(git branch *)"
+      "Bash(git branch *)",
+      "Bash(uv run *)",
+      "Bash(git rev-parse *)",
+      "Bash(git show *)"
     ],
     "ask": [
       "Bash(git commit *)",
@@ -31,6 +34,7 @@
       "Bash(sudo *)"
     ]
   },
+  "enabledMcpjsonServers": ["playwright-test"],
   "hooks": {
     "PreToolUse": [
       {
