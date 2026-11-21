@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { requestRejectionNoticeFocus } from "./rejection-notice";
 import type { ApiErrorBody } from "@/lib/http";
 
 const NETWORK_ERROR = "Không kết nối được máy chủ, vui lòng thử lại.";
@@ -45,8 +46,7 @@ export function CancelOrderButton({ orderId }: { orderId: string }) {
       if (response.ok) {
         setConfirming(false);
         router.refresh();
-        // Epic 5 sẽ chuyển focus sang RejectionNotice "Bạn đã hủy đơn"
-        document.querySelector("h1")?.focus();
+        requestRejectionNoticeFocus(); // nút biến mất sau khi tải lại; focus sang "Bạn đã hủy đơn"
         return;
       }
       if (response.status === 401) {

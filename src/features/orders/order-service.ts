@@ -1,4 +1,5 @@
 import { MAX_QUANTITY_PER_ITEM } from "@/features/cart/cart-reducer";
+import { buildCatalogHref, parseCatalogQuery } from "@/features/catalog/catalog-rules";
 import { getProductById } from "@/features/catalog/catalog-data";
 import type { Product } from "@/features/catalog/types";
 import { placeOrderSchema, toFieldErrors } from "@/features/checkout/checkout-schema";
@@ -81,6 +82,15 @@ export function createOrderService({
       throw new OrderError("ORDER_NOT_FOUND", `Không tìm thấy đơn hàng "${id}"`);
     }
     return order;
+  }
+
+  /** `maskOrder` kèm link danh mục của món đầu tiên khi nhân viên từ chối vì hết hàng; món không còn trong catalog thì không có link. */
+  function mask(order: StoredOrder): MaskedOrder {
+    const category =
+      order.cancelledBy === "staff" && order.cancelReason === "out_of_stock"
+        ? findProduct(order.items[0]?.productId ?? "")?.categorySlug
+        : undefined;
+    return maskOrder(order, category && buildCatalogHref(parseCatalogQuery({}), { category }));
   }
 
   return {
@@ -188,7 +198,7 @@ export function createOrderService({
         }
         throw new Error("Không tạo được mã đơn hàng duy nhất");
       });
-      return maskOrder(saved);
+      return mask(saved);
     },
 
     /** Danh sách đơn đầy đủ cho nhân viên, mới nhất trước. */
@@ -244,13 +254,13 @@ export function createOrderService({
 
     /** Đơn đã che; chỉ gọi sau khi đã kiểm grant. */
     async getMaskedOrder(id: string): Promise<MaskedOrder> {
-      return maskOrder(await getOrder(id));
+      return mask(await getOrder(id));
     },
 
     /** Tra cứu của khách: đúng Mã xác minh thì trả bản che, sai hoặc không có đơn thì null (không phân biệt). */
     async lookupOrder(canonicalId: string, verification: string): Promise<MaskedOrder | null> {
       const order = await repository.findById(canonicalId);
-      return verifyLookup(order ?? undefined, verification) && order ? maskOrder(order) : null;
+      return verifyLookup(order ?? undefined, verification) && order ? mask(order) : null;
     },
 
     /** Khách hàng chỉ được hủy đơn khi đơn còn ở trạng thái "Chờ xác nhận". */
@@ -265,7 +275,7 @@ export function createOrderService({
         await tx.save(next);
         return next;
       });
-      return maskOrder(cancelled);
+      return mask(cancelled);
     },
   };
 }

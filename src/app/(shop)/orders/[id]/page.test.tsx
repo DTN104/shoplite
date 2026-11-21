@@ -55,6 +55,7 @@ function maskedOrder(status: MaskedOrder["status"] = "pending"): MaskedOrder {
     paymentMethod: "cod",
     createdAt: "2026-10-21T03:00:00.000Z",
     recipient: { name: "Test", phone: "•••••• 5678" },
+    timeline: [{ label: "Đặt hàng", at: "2026-10-21T03:00:00.000Z" }],
   } as unknown as MaskedOrder;
 }
 
@@ -93,6 +94,47 @@ describe("trang /orders/[id]", () => {
     await renderPage();
     expect(screen.queryByText("Đặt hàng thành công!")).toBeNull();
     expect(screen.queryByRole("button", { name: "Hủy đơn hàng" })).toBeNull();
+  });
+
+  it("đơn bị từ chối: RejectionNotice nằm sau phần đầu, trước thẻ Hành trình và Sản phẩm; có link hết hàng", async () => {
+    mocks.token = grantToken(ID, "lookup");
+    mocks.getMaskedOrder.mockResolvedValue({
+      ...maskedOrder("cancelled"),
+      cancelledBy: "staff",
+      cancelReasonLabel: "Hết hàng",
+      categoryHref: "/products?category=phu-kien",
+      timeline: [
+        { label: "Đặt hàng", at: "2026-10-21T03:00:00.000Z" },
+        { label: "Đã hủy", at: "2026-10-21T04:00:00.000Z" },
+      ],
+    });
+    await renderPage();
+    const notice = screen.getByTestId("rejection-notice");
+    expect(notice).toHaveTextContent("Shop đã từ chối đơn, lý do: Hết hàng");
+    const timeline = screen.getByRole("heading", { name: "Hành trình đơn hàng" });
+    const products = screen.getByRole("heading", { name: "Sản phẩm" });
+    expect(
+      notice.compareDocumentPosition(timeline) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      timeline.compareDocumentPosition(products) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getAllByTestId("timeline-entry")[0]).toHaveTextContent("Đã hủy");
+    expect(screen.getByRole("link", { name: "Xem sản phẩm cùng danh mục" })).toBeInTheDocument();
+  });
+
+  it("khách tự hủy: 'Bạn đã hủy đơn'; đơn hủy cũ thiếu cancelledBy: không có notice", async () => {
+    mocks.token = grantToken(ID, "lookup");
+    mocks.getMaskedOrder.mockResolvedValue({
+      ...maskedOrder("cancelled"),
+      cancelledBy: "customer",
+    });
+    await renderPage();
+    expect(screen.getByTestId("rejection-notice")).toHaveTextContent("Bạn đã hủy đơn");
+    document.body.innerHTML = "";
+    mocks.getMaskedOrder.mockResolvedValue(maskedOrder("cancelled"));
+    await renderPage();
+    expect(screen.queryByTestId("rejection-notice")).toBeNull();
   });
 
   it("title lấy từ URL, không truy vấn dữ liệu", async () => {

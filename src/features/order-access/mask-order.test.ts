@@ -54,6 +54,7 @@ describe("maskOrder", () => {
     const masked: Record<string, unknown> = { ...maskOrder(baseOrder) };
     const expected: Record<string, unknown> = { ...baseOrder };
     delete masked.recipient;
+    delete masked.timeline;
     delete expected.customer;
     expect(masked).toEqual(expected);
   });
@@ -116,5 +117,58 @@ describe("maskOrder", () => {
         if (secret) expect(json).not.toContain(secret);
       }
     }
+  });
+  describe("lý do hủy và timeline", () => {
+    const staffCancelled: Order = {
+      ...baseOrder,
+      status: "cancelled",
+      updatedAt: "2026-11-21T04:00:00.000Z",
+      cancelledBy: "staff",
+      cancelReason: "out_of_stock",
+      statusHistory: [
+        { status: "pending", at: baseOrder.createdAt },
+        { status: "cancelled", at: "2026-11-21T04:00:00.000Z" },
+      ],
+    };
+
+    it("đơn bị từ chối: có nhãn lý do, không có mã thô, timeline Đặt hàng rồi Đã hủy", () => {
+      const masked = maskOrder(staffCancelled);
+      expect(masked.cancelledBy).toBe("staff");
+      expect(masked.cancelReasonLabel).toBe("Hết hàng");
+      expect(JSON.stringify(masked)).not.toContain("out_of_stock");
+      expect(masked.timeline.map((e) => e.label)).toEqual(["Đặt hàng", "Đã hủy"]);
+    });
+
+    it("khách tự hủy: có cancelledBy, không có nhãn lý do", () => {
+      const masked = maskOrder({
+        ...staffCancelled,
+        cancelledBy: "customer",
+        cancelReason: undefined,
+      });
+      expect(masked.cancelledBy).toBe("customer");
+      expect(masked).not.toHaveProperty("cancelReasonLabel");
+    });
+
+    it("đơn cũ thiếu người hủy: không có hai trường, timeline suy từ createdAt/updatedAt", () => {
+      const masked = maskOrder({
+        ...baseOrder,
+        status: "cancelled",
+        updatedAt: "2026-11-22T00:00:00.000Z",
+      });
+      expect(masked).not.toHaveProperty("cancelledBy");
+      expect(masked).not.toHaveProperty("cancelReasonLabel");
+      expect(masked.timeline).toEqual([
+        { label: "Đặt hàng", at: baseOrder.createdAt },
+        { label: "Đã hủy", at: "2026-11-22T00:00:00.000Z" },
+      ]);
+    });
+
+    it("đơn chờ xác nhận chỉ có mốc Đặt hàng; categoryHref chỉ có khi được truyền", () => {
+      expect(maskOrder(baseOrder).timeline).toHaveLength(1);
+      expect(maskOrder(baseOrder)).not.toHaveProperty("categoryHref");
+      expect(maskOrder(staffCancelled, "/products?category=am-thanh").categoryHref).toBe(
+        "/products?category=am-thanh",
+      );
+    });
   });
 });

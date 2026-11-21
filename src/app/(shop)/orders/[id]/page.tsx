@@ -8,6 +8,8 @@ import { SHIPPING_OPTIONS } from "@/features/checkout/pricing";
 import { CancelOrderButton } from "@/features/orders/components/cancel-order-button";
 import { OrderStatusBadge } from "@/features/orders/components/order-status-badge";
 import { OrderSuccessBanner } from "@/features/orders/components/order-success-banner";
+import { OrderTimeline } from "@/features/orders/components/order-timeline";
+import { RejectionNotice } from "@/features/orders/components/rejection-notice";
 import { OrderTotals } from "@/features/orders/components/order-totals";
 import { MaskedRecipientCard } from "@/features/order-access/components/masked-recipient-card";
 import { OrderLookupPanel } from "@/features/order-access/components/order-lookup-panel";
@@ -77,6 +79,16 @@ export default async function OrderDetailPage({ params }: PageProps<"/orders/[id
       {grant.via === "placed" && order.status === "pending" && (
         <OrderSuccessBanner orderId={order.id} />
       )}
+
+      {order.status === "cancelled" && order.cancelledBy && (
+        <RejectionNotice
+          cancelledBy={order.cancelledBy}
+          reasonLabel={order.cancelReasonLabel}
+          categoryHref={order.categoryHref}
+        />
+      )}
+
+      <OrderTimeline title="Hành trình đơn hàng" entries={order.timeline} />
 
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 className="mb-2 text-lg font-semibold">Sản phẩm</h2>

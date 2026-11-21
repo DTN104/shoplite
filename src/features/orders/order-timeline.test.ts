@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getTimeline } from "./order-timeline";
+import { getTimeline, getTimelineView } from "./order-timeline";
 import { deepFreeze, type Order } from "./types";
 
 const base: Order = {
@@ -43,4 +43,14 @@ describe("getTimeline", () => {
       ]);
     },
   );
+});
+
+describe("getTimelineView", () => {
+  it("mốc đầu là Đặt hàng, các mốc sau là nhãn trạng thái", () => {
+    const order = { ...base, status: "confirmed" as const, updatedAt: "2026-10-22T00:00:00.000Z" };
+    expect(getTimelineView(order)).toEqual([
+      { label: "Đặt hàng", at: base.createdAt },
+      { label: "Đã xác nhận", at: "2026-10-22T00:00:00.000Z" },
+    ]);
+  });
 });

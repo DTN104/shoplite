@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CancelOrderButton } from "./cancel-order-button";
+import { RejectionNotice } from "./rejection-notice";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -44,7 +45,7 @@ describe("<CancelOrderButton />", () => {
     expect(screen.getByRole("button", { name: "Hủy đơn hàng" })).toHaveFocus();
   });
 
-  it("thành công: gửi PATCH, tải lại dữ liệu, focus H1", async () => {
+  it("thành công: gửi PATCH, tải lại dữ liệu, focus chuyển sang RejectionNotice khi nó xuất hiện", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
     const user = await openDialog(fetchMock);
     await user.click(screen.getByRole("button", { name: "Xác nhận hủy" }));
@@ -54,7 +55,8 @@ describe("<CancelOrderButton />", () => {
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "cancelled" }) }),
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+    render(<RejectionNotice cancelledBy="customer" />);
+    expect(screen.getByTestId("rejection-notice")).toHaveFocus();
   });
 
   it("đang gửi: nút hiện Đang hủy… và bị khóa", async () => {

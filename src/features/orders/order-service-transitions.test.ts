@@ -123,7 +123,7 @@ describe("transitionByStaff - cặp hợp lệ", () => {
     const cancelled = await service.cancelOrder("SL-A");
     expect(cancelled.status).toBe("cancelled");
     expect(cancelled.cancelledBy).toBe("customer");
-    expect(cancelled.cancelReason).toBeUndefined();
+    expect(cancelled).not.toHaveProperty("cancelReasonLabel");
   });
 });
 

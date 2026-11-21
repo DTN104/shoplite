@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { ADMIN_TEST_PASSWORD, BASE_URL } from "../playwright.config";
 import { expect, test } from "./fixtures";
 
 // Phải trùng ORDERS_FILE trong playwright.config.ts
@@ -24,9 +25,42 @@ test("khách đặt hàng rồi tự hủy; trình duyệt khác không hủy đ
 
   await page.getByRole("button", { name: "Hủy đơn hàng" }).click();
   await page.getByRole("button", { name: "Xác nhận hủy" }).click();
-  await expect(page.getByText("Đã hủy")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 }).getByText("Đã hủy")).toBeVisible();
   await expect(page.getByRole("button", { name: "Hủy đơn hàng" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
+  await expect(page.getByTestId("rejection-notice")).toHaveText("Bạn đã hủy đơn");
+  await expect(page.getByTestId("rejection-notice")).toBeFocused();
+  await expect(page.getByTestId("timeline-entry").first()).toContainText("Đã hủy");
+});
+
+test("nhân viên từ chối vì hết hàng: khách thấy lý do và link danh mục", async ({ browser }) => {
+  const staff = await browser.newContext({ baseURL: BASE_URL });
+  const customer = await browser.newContext({ baseURL: BASE_URL });
+  await staff.request.post("/api/admin/login", { data: { password: ADMIN_TEST_PASSWORD } });
+  const placed = await customer.request.post("/api/orders", {
+    data: {
+      customer: { fullName: "Khách Từ Chối", phone: "0912345678", address: "1 A, Quận 1, TP.HCM" },
+      shippingMethod: "standard",
+      paymentMethod: "cod",
+      items: [{ productId: "p010", quantity: 1 }],
+    },
+  });
+  const { id } = await placed.json();
+  const rejected = await staff.request.patch(`/api/admin/orders/${id}`, {
+    data: { from: "pending", to: "cancelled", reason: "out_of_stock" },
+  });
+  expect(rejected.status()).toBe(200);
+
+  const page = await customer.newPage();
+  await page.goto(`/orders/${id}`);
+  const notice = page.getByTestId("rejection-notice");
+  await expect(notice).toContainText("Shop đã từ chối đơn, lý do: Hết hàng");
+  await expect(notice.getByRole("link", { name: "Xem sản phẩm cùng danh mục" })).toHaveAttribute(
+    "href",
+    "/products?category=phu-kien",
+  );
+  await expect(page.getByTestId("timeline-entry")).toHaveCount(2);
+  await staff.close();
+  await customer.close();
 });
 
 test("hủy đơn đã xác nhận trả 409 với message hiện có", async ({ page, shop }) => {

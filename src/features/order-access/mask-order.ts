@@ -1,4 +1,5 @@
-import type { Order, StoredOrder } from "@/features/orders/types";
+import { getTimelineView, type TimelineView } from "@/features/orders/order-timeline";
+import { CANCEL_REASON_LABELS, type Order, type StoredOrder } from "@/features/orders/types";
 import { getPhoneLast4, NO_PHONE_LAST4 } from "./phone";
 
 /** Thông tin người nhận đã che. Trường không rút được mảnh an toàn thì bỏ hẳn. */
@@ -17,7 +18,15 @@ export interface MaskedRecipient {
  * Đơn gửi cho người chưa xác minh: không có `customer`, nên đọc `.phone`, `.email`, `.address`...
  * ở gốc hay `.customer` đều là lỗi biên dịch.
  */
-export type MaskedOrder = Omit<Order, "customer"> & { recipient: MaskedRecipient };
+export type MaskedOrder = Omit<Order, "customer" | "cancelReason"> & {
+  recipient: MaskedRecipient;
+  /** Nhãn lý do Từ chối (không lộ mã thô); chỉ khi nhân viên từ chối. */
+  cancelReasonLabel?: string;
+  /** Mốc tăng dần, mốc đầu "Đặt hàng". */
+  timeline: TimelineView[];
+  /** Link danh mục món đầu tiên, do service dựng (đơn bị từ chối vì hết hàng). */
+  categoryHref?: string;
+};
 
 function maskName(fullName: string): string | undefined {
   return fullName.trim().split(/\s+/).at(-1) || undefined;
@@ -41,8 +50,8 @@ function maskArea(address: string): string | undefined {
 }
 
 /** Cài đặt duy nhất của quy tắc che; trả object mới, không sửa đầu vào. */
-export function maskOrder(order: StoredOrder): MaskedOrder {
-  const { customer, ...rest } = order;
+export function maskOrder(order: StoredOrder, categoryHref?: string): MaskedOrder {
+  const { customer, cancelReason, ...rest } = order;
   const recipient: MaskedRecipient = {};
   const name = maskName(customer.fullName);
   const phone = maskPhone(customer.phone);
@@ -57,7 +66,11 @@ export function maskOrder(order: StoredOrder): MaskedOrder {
     items: structuredClone(rest.items) as Order["items"],
     statusHistory: structuredClone(rest.statusHistory) as Order["statusHistory"],
     recipient,
+    timeline: getTimelineView(order),
   };
+  if (rest.cancelledBy && cancelReason)
+    masked.cancelReasonLabel = CANCEL_REASON_LABELS[cancelReason];
+  if (categoryHref) masked.categoryHref = categoryHref;
   if (!rest.statusHistory) delete masked.statusHistory; // đơn cũ: không thêm khóa undefined
   return masked;
 }

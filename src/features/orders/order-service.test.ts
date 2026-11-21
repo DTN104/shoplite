@@ -301,7 +301,39 @@ describe("orderService", () => {
     it("nhân viên nhận đơn đầy đủ, khách chỉ nhận bản che", async () => {
       const order = await service.placeOrder(validInput());
       expect((await service.getOrderForStaff(staff, order.id)).customer.phone).toBe("0987654321");
-      expect(await service.getMaskedOrder(order.id)).toEqual(order);
+      expect(await service.getMaskedOrder(order.id)).toMatchObject({
+        id: order.id,
+        recipient: order.recipient,
+      });
+    });
+  });
+
+  describe("MaskedOrder của đơn bị từ chối", () => {
+    it("hết hàng: có link danh mục của món đầu; lý do khác hoặc món không còn trong catalog thì không", async () => {
+      const link = async (
+        reason: "out_of_stock" | "unreachable",
+        findProduct?: () => undefined,
+      ) => {
+        const repo = createInMemoryOrderRepository();
+        const svc = createOrderService({
+          repository: repo,
+          now: () => FIXED_DATE,
+          findProduct: undefined,
+        });
+        const order = await svc.placeOrder(validInput());
+        await svc.transitionByStaff(staff, order.id, { from: "pending", to: "cancelled", reason });
+        if (!findProduct) return (await svc.getMaskedOrder(order.id)).categoryHref;
+        const gone = createOrderService({ repository: repo, findProduct });
+        return (await gone.getMaskedOrder(order.id)).categoryHref;
+      };
+      expect(await link("out_of_stock")).toBe("/products?category=phu-kien");
+      expect(await link("unreachable")).toBeUndefined();
+      expect(await link("out_of_stock", () => undefined)).toBeUndefined();
+    });
+
+    it("khách tự hủy: không có categoryHref", async () => {
+      const order = await service.placeOrder(validInput());
+      expect(await service.cancelOrder(order.id)).not.toHaveProperty("categoryHref");
     });
   });
 
