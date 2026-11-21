@@ -1,6 +1,7 @@
 import { createHash, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { buildCookie, readCookie } from "@/lib/cookie";
 import { jsonError } from "@/lib/http";
 import { signToken, verifyToken } from "@/lib/signed-token";
 
@@ -47,14 +48,6 @@ function isValidSession(token: string | undefined): boolean {
   );
 }
 
-function readCookie(request: Request, name: string): string | undefined {
-  for (const part of (request.headers.get("cookie") ?? "").split(";")) {
-    const index = part.indexOf("=");
-    if (index > 0 && part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
-  }
-  return undefined;
-}
-
 /** Trạng thái cookie phiên: hợp lệ, có nhưng sai/hết hạn, hoặc không có. */
 export async function getAdminSession(): Promise<"valid" | "invalid" | "none"> {
   if (!isAdminEnabled()) return "none"; // khóa rỗng ký được token, không được coi là phiên
@@ -89,35 +82,16 @@ export function checkAdminPassword(candidate: string): boolean {
   return timingSafeEqual(hash(candidate), hash(process.env.ADMIN_PASSWORD ?? ""));
 }
 
-// shortcut: tin phần tử đầu của x-forwarded-proto, chỉ đúng khi sau reverse proxy tin cậy
-function isSecure(request: Request): boolean {
-  const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0].trim().toLowerCase();
-  return forwarded === "https" || new URL(request.url).protocol === "https:";
-}
-
-function cookieHeader(value: string, maxAgeSeconds: number, request: Request): string {
-  const expires = new Date(maxAgeSeconds === 0 ? 0 : Date.now() + maxAgeSeconds * 1000);
-  return [
-    `${COOKIE_NAME}=${value}`,
-    "Path=/",
-    `Expires=${expires.toUTCString()}`,
-    `Max-Age=${maxAgeSeconds}`,
-    "HttpOnly",
-    "SameSite=Lax",
-    ...(isSecure(request) ? ["Secure"] : []),
-  ].join("; ");
-}
-
 /** Giá trị Set-Cookie cho phiên mới, hết hạn tuyệt đối 12 giờ. */
 export function createSessionCookie(request: Request): string {
   const token = signToken(
     { sub: "admin" },
     { key: sessionKey(), purpose: SESSION_PURPOSE, ttlMs: SESSION_TTL_MS },
   );
-  return cookieHeader(token, SESSION_TTL_MS / 1000, request);
+  return buildCookie(COOKIE_NAME, token, SESSION_TTL_MS / 1000, request);
 }
 
 /** Giá trị Set-Cookie xóa phiên (hết hạn trong quá khứ). */
 export function clearSessionCookie(request: Request): string {
-  return cookieHeader("", 0, request);
+  return buildCookie(COOKIE_NAME, "", 0, request);
 }

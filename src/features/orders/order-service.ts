@@ -7,6 +7,8 @@ import { toCouponOrderError } from "@/features/coupons/coupon-errors";
 import { evaluateCoupon } from "@/features/coupons/coupon-rules";
 import { findCouponByCode } from "@/features/coupons/coupon-service";
 import type { Coupon } from "@/features/coupons/types";
+import { maskOrder, type MaskedOrder } from "@/features/order-access/mask-order";
+import { verifyLookup } from "@/features/order-access/verify-lookup";
 import { OrderError } from "./order-errors";
 import type { OrderRepository } from "./order-repository";
 import type { Order, OrderItem } from "./types";
@@ -148,6 +150,12 @@ export function createOrderService({
     },
 
     getOrder,
+
+    /** Tra cứu của khách: đúng Mã xác minh thì trả bản che, sai hoặc không có đơn thì null (không phân biệt). */
+    async lookupOrder(canonicalId: string, verification: string): Promise<MaskedOrder | null> {
+      const order = await repository.findById(canonicalId);
+      return verifyLookup(order ?? undefined, verification) && order ? maskOrder(order) : null;
+    },
 
     /** Khách hàng chỉ được hủy đơn khi đơn còn ở trạng thái "Chờ xác nhận". */
     async cancelOrder(id: string): Promise<Order> {

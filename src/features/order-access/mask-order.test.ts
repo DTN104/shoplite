@@ -51,8 +51,10 @@ describe("maskOrder", () => {
   });
 
   it("giữ nguyên tiền, món, phương thức, trạng thái, thời gian", () => {
-    const { recipient: _recipient, ...masked } = maskOrder(baseOrder);
-    const { customer: _customer, ...expected } = baseOrder;
+    const masked: Record<string, unknown> = { ...maskOrder(baseOrder) };
+    const expected: Record<string, unknown> = { ...baseOrder };
+    delete masked.recipient;
+    delete expected.customer;
     expect(masked).toEqual(expected);
   });
 
