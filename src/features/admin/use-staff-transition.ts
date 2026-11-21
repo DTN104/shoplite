@@ -27,6 +27,7 @@ export function useStaffTransition({ holdOnSuccess = false } = {}) {
       from: OrderStatus,
       to: OrderStatus,
       reason?: CancelReason,
+      productId?: string,
     ): Promise<TransitionOutcome | undefined> => {
       setPending(true);
       let succeeded = false;
@@ -34,7 +35,12 @@ export function useStaffTransition({ holdOnSuccess = false } = {}) {
         const response = await fetch(`/api/admin/orders/${encodeURIComponent(id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(reason ? { from, to, reason } : { from, to }),
+          body: JSON.stringify({
+            from,
+            to,
+            ...(reason && { reason }),
+            ...(productId && { productId }),
+          }),
         });
         if (response.ok) {
           succeeded = true; // holdOnSuccess: giữ `pending` đến khi chuyển trang, chặn bấm đúp

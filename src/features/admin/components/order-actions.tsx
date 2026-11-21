@@ -17,9 +17,12 @@ interface OrderActions {
     notice: NoticeCode,
     tab?: string,
     reason?: CancelReason,
+    productId?: string,
   ): Promise<void>;
   /** Từ chối đơn `pending` với một lý do (Story 5.3). */
   reject(reason: CancelReason): Promise<void>;
+  /** Báo thiếu hàng một món của đơn `confirmed` (Story 5.7). */
+  reportShortage(productId: string): Promise<void>;
 }
 
 const OrderActionsContext = createContext<OrderActions | null>(null);
@@ -39,9 +42,15 @@ export function OrderActionsProvider({
 
   const actions: OrderActions = {
     pending,
-    async run(from, to, notice, tab = ADMIN_TAB_BY_STATUS[from], reason) {
+    async run(from, to, notice, tab = ADMIN_TAB_BY_STATUS[from], reason, productId) {
       setError(null);
-      const outcome: TransitionOutcome | undefined = await submit(orderId, from, to, reason);
+      const outcome: TransitionOutcome | undefined = await submit(
+        orderId,
+        from,
+        to,
+        reason,
+        productId,
+      );
       if (!outcome) return;
       if (outcome.ok) {
         router.push(noticeUrl(tab, notice, orderId));
@@ -51,6 +60,8 @@ export function OrderActionsProvider({
       if (outcome.refresh) router.refresh();
     },
     reject: (reason) => actions.run("pending", "cancelled", "rejected", undefined, reason),
+    reportShortage: (productId) =>
+      actions.run("confirmed", "cancelled", "shortage", undefined, "out_of_stock", productId),
   };
 
   return (

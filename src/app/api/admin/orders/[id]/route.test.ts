@@ -146,6 +146,21 @@ describe("PATCH /api/admin/orders/:id - nghiệp vụ", () => {
     expect((await patch(" sl-a ", confirm)).status).toBe(200);
   });
 
+  it("Báo thiếu hàng: 200 ghi stockAdjustment; thiếu productId hoặc productId lạ: 400, đơn giữ confirmed", async () => {
+    await repo().save(order("SL-A", "confirmed"));
+    const body = { from: "confirmed", to: "cancelled", reason: "out_of_stock" };
+    expect((await patch("SL-A", body)).status).toBe(400);
+    expect((await patch("SL-A", { ...body, productId: "p999" })).status).toBe(400);
+    expect((await repo().findById("SL-A"))?.status).toBe("confirmed");
+    const ok = await patch("SL-A", { ...body, productId: "p010" });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({
+      status: "cancelled",
+      cancelReason: "out_of_stock",
+      stockAdjustment: { productId: "p010", quantity: 1 },
+    });
+  });
+
   it("lỗi nghiệp vụ đúng status + body { error: { code, message } }", async () => {
     await repo().save(order("SL-A"));
     const notFound = await patch("SL-KHONG-CO", confirm);

@@ -1,6 +1,6 @@
 import { ORDER_STATUS_LABELS } from "@/features/orders/types";
 
-/** Mã `notice` hợp lệ trên URL Hàng việc; mã khác bị bỏ qua. `shortage` do Story 5.7 thêm câu chữ. */
+/** Mã `notice` hợp lệ trên URL Hàng việc; mã khác bị bỏ qua. */
 export const NOTICE_CODES = ["confirmed", "rejected", "shipping", "delivered", "shortage"] as const;
 export type NoticeCode = (typeof NOTICE_CODES)[number];
 
@@ -10,6 +10,7 @@ const ORDER_ID_PATTERN = /^SL-\d{8}-[0-9A-F]{6}$/;
 export function noticeMessage(code: NoticeCode, id: string): string | undefined {
   if (code === "confirmed") return `Đã xác nhận đơn ${id}`;
   if (code === "rejected") return `Đã từ chối đơn ${id}`;
+  if (code === "shortage") return `Đã báo thiếu hàng, đơn ${id} bị từ chối`;
   if (code === "shipping" || code === "delivered") {
     return `Đơn ${id} đã chuyển sang ${ORDER_STATUS_LABELS[code]}`;
   }

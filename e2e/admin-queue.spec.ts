@@ -199,3 +199,32 @@ test("UJ-2 xung đột: trang cũ bấm sau khi đơn đã đổi thì nhận '�
   await lan.close();
   await hung.close();
 });
+
+test("UJ-2 edge 2: Báo thiếu hàng ở đơn confirmed, đơn bị từ chối kèm Điều chỉnh tồn", async ({
+  browser,
+}) => {
+  const hung = await staffContext(browser);
+  const id = await placeP010(hung.request);
+  expect((await step(hung.request, id, "pending", "confirmed")).status()).toBe(200);
+
+  const page = await hung.newPage();
+  await page.goto(`/admin/orders/${id}`);
+  await page.getByTestId("shortage-report-button").click();
+  await page.getByTestId("shortage-confirm").click();
+
+  await expect(page).toHaveURL(/\/admin\?tab=confirmed$/);
+  const notice = page.getByTestId("status-notice");
+  await expect(notice).toHaveText(`Đã báo thiếu hàng, đơn ${id} bị từ chối`);
+  await expect(notice).toBeFocused();
+
+  const saved = await (await hung.request.get(`/api/orders/${id}`)).json();
+  expect(saved).toMatchObject({
+    status: "cancelled",
+    cancelledBy: "staff",
+    cancelReason: "out_of_stock",
+    stockAdjustment: { productId: "p010", quantity: 1 },
+  });
+  await page.getByTestId("admin-tab-done").click();
+  await expect(page.getByTestId("admin-order-row").filter({ hasText: id })).toBeVisible();
+  await hung.close();
+});

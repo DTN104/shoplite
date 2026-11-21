@@ -16,11 +16,17 @@ export interface TransitionCommand {
   to: OrderStatus;
   /** Bắt buộc khi nhân viên hủy (`to: "cancelled"`); khách tự hủy không có lý do. */
   reason?: CancelReason;
+  /** Món bị báo thiếu hàng; bắt buộc (và phải thuộc đơn) khi nhân viên hủy đơn `confirmed`. */
+  productId?: string;
 }
 
 /** Bảng cặp hợp lệ theo người thao tác. `delivered` và `cancelled` là trạng thái cuối. */
 const VALID_TARGETS: Record<TransitionActor, Partial<Record<OrderStatus, OrderStatus[]>>> = {
-  staff: { pending: ["confirmed", "cancelled"], confirmed: ["shipping"], shipping: ["delivered"] },
+  staff: {
+    pending: ["confirmed", "cancelled"],
+    confirmed: ["shipping", "cancelled"],
+    shipping: ["delivered"],
+  },
   customer: { pending: ["cancelled"] },
 };
 
@@ -61,5 +67,23 @@ export function transitionOrder(
       reason: "Chọn một lý do hợp lệ",
     });
   }
-  return { ...next, cancelledBy: "staff", cancelReason: command.reason };
+  if (order.status !== "confirmed") {
+    return { ...next, cancelledBy: "staff", cancelReason: command.reason };
+  }
+  // Báo thiếu hàng (AD-4/AD-6): lý do cố định, món phải thuộc đơn; hàng các món còn lại nguyên vẹn.
+  const item = order.items.find((i) => i.productId === command.productId);
+  if (command.reason !== "out_of_stock" || !item) {
+    throw new OrderError("VALIDATION_ERROR", "Thông tin chuyển trạng thái không hợp lệ", {
+      ...(command.reason !== "out_of_stock" && {
+        reason: "Báo thiếu hàng chỉ dùng lý do Hết hàng",
+      }),
+      ...(!item && { productId: "Món không thuộc đơn hàng" }),
+    });
+  }
+  return {
+    ...next,
+    cancelledBy: "staff",
+    cancelReason: "out_of_stock",
+    stockAdjustment: { productId: item.productId, quantity: item.quantity },
+  };
 }
