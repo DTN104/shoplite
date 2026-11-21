@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   requireAdmin: vi.fn(),
   getOrderForStaff: vi.fn(),
   getRawStockFor: vi.fn(),
+  listOrders: vi.fn(),
   ctx: { admin: true },
 }));
 
@@ -22,7 +23,7 @@ vi.mock("@/features/inventory/server", () => ({
   inventoryService: { getRawStockFor: mocks.getRawStockFor },
 }));
 vi.mock("@/features/orders/server", () => ({
-  orderService: { getOrderForStaff: mocks.getOrderForStaff },
+  orderService: { getOrderForStaff: mocks.getOrderForStaff, listOrders: mocks.listOrders },
 }));
 
 const ID = "SL-20261021-ABC123";
@@ -72,6 +73,7 @@ beforeEach(() => {
   mocks.requireAdmin.mockReset().mockResolvedValue(mocks.ctx);
   mocks.getOrderForStaff.mockReset().mockResolvedValue(order());
   mocks.getRawStockFor.mockReset().mockResolvedValue({ p010: 1 });
+  mocks.listOrders.mockReset().mockResolvedValue([]);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -209,6 +211,34 @@ describe("trang /admin/orders/[id] - bảng tồn kho (Story 4.5)", () => {
     expect(screen.getByTestId("stock-short")).toHaveTextContent("Không đủ hàng");
     expect(screen.getByTestId("stock-current")).toHaveTextContent("1");
     expect(screen.getByTestId("confirm-order-button")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("cột Đang chờ chỉ tính số lượng đơn pending khác, không đổi trạng thái khóa nút (Story 4.9)", async () => {
+    const other = (id: string, status: OrderStatus, quantity: number) => ({
+      ...order(status),
+      id,
+      items: [{ ...order().items[0], quantity }],
+    });
+    mocks.getRawStockFor.mockResolvedValue({ p010: 5 });
+    mocks.listOrders.mockResolvedValue([
+      order(),
+      other("B", "pending", 2),
+      other("C", "pending", 1),
+      other("D", "confirmed", 9),
+      other("E", "cancelled", 9),
+    ]);
+    await renderPage();
+    expect(screen.getByTestId("stock-pending")).toHaveTextContent("3");
+    expect(screen.getByRole("button", { name: "Xác nhận đơn" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
+  });
+
+  it("đơn không pending: không có cột Đang chờ và không quét danh sách đơn", async () => {
+    mocks.getOrderForStaff.mockResolvedValue(order("confirmed"));
+    await renderPage();
+    expect(screen.queryByTestId("stock-pending")).toBeNull();
+    expect(mocks.listOrders).not.toHaveBeenCalled();
   });
 
   it("đơn pending đủ hàng: nút Xác nhận đơn dùng được", async () => {

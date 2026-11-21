@@ -78,6 +78,7 @@ test("UJ-1: Xác nhận đơn từ chi tiết, kho giảm; đơn khác hết hà
   );
   await page.getByTestId("admin-order-row").filter({ hasText: first }).getByRole("link").click();
   await expect(page.getByTestId("stock-current")).toHaveText(String(stock));
+  await expect(page.getByTestId("stock-pending")).toHaveText("1"); // đơn `second`
   await page.getByTestId("confirm-order-button").click();
 
   await expect(page).toHaveURL(/\/admin\?tab=pending$/);

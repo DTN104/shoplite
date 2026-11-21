@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { deepFreeze, type OrderStatus, type StoredOrder } from "@/features/orders/types";
-import { PENDING_SLA_MS, buildQueue, isOverdue, toQueueRow } from "./queue-rules";
+import {
+  PENDING_SLA_MS,
+  buildQueue,
+  getPendingQuantities,
+  getPendingQuantity,
+  isOverdue,
+  toQueueRow,
+} from "./queue-rules";
 
 const CREATED = "2026-10-21T00:00:00.000Z";
 const t = (h: number) => new Date(Date.parse(CREATED) + h * 3_600_000).toISOString();
@@ -110,5 +117,33 @@ describe("buildQueue - đơn tồn đọng (Story 4.8)", () => {
     expect(q.pending.count).toBe(12);
     expect(q.pending.rows.slice(0, 11).every((r) => r.overdue)).toBe(true);
     expect(q.pending.rows[11]).toMatchObject({ id: "NEW", overdue: false });
+  });
+});
+
+describe("getPendingQuantity", () => {
+  const withItems = (id: string, status: OrderStatus, items: [string, number][]) => ({
+    id,
+    status,
+    items: items.map(([productId, quantity]) => ({ productId, quantity })),
+  });
+  const orders = [
+    withItems("A", "pending", [["p1", 2]]),
+    withItems("B", "pending", [
+      ["p1", 1],
+      ["p2", 4],
+    ]),
+    withItems("C", "confirmed", [["p1", 9]]),
+    withItems("D", "shipping", [["p1", 9]]),
+    withItems("E", "delivered", [["p1", 9]]),
+    withItems("F", "cancelled", [["p1", 9]]),
+  ] as unknown as StoredOrder[];
+
+  it("xem A trả 1, xem B trả 2; chỉ tính pending khác và đúng sản phẩm", () => {
+    expect(getPendingQuantity(orders, "p1", "A")).toBe(1);
+    expect(getPendingQuantity(orders, "p1", "B")).toBe(2);
+    expect(getPendingQuantity(orders, "p3", "A")).toBe(0);
+  });
+  it("một lượt cho nhiều món", () => {
+    expect(getPendingQuantities(orders, ["p1", "p2"], "A")).toEqual({ p1: 1, p2: 4 });
   });
 });

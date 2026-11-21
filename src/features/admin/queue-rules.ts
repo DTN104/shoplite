@@ -40,6 +40,30 @@ export function isOverdue(order: Pick<StoredOrder, "status" | "createdAt">, now:
   );
 }
 
+/** Số lượng từng món trong các đơn `pending` KHÁC `excludeOrderId`, một lượt quét; món không ai chờ = 0. */
+export function getPendingQuantities(
+  orders: readonly Pick<StoredOrder, "id" | "status" | "items">[],
+  productIds: readonly string[],
+  excludeOrderId: string,
+): Record<string, number> {
+  const totals = Object.fromEntries(productIds.map((id) => [id, 0]));
+  for (const order of orders) {
+    if (order.status !== "pending" || order.id === excludeOrderId) continue;
+    for (const item of order.items) {
+      if (item.productId in totals) totals[item.productId] += item.quantity;
+    }
+  }
+  return totals;
+}
+
+export function getPendingQuantity(
+  orders: readonly Pick<StoredOrder, "id" | "status" | "items">[],
+  productId: string,
+  excludeOrderId: string,
+): number {
+  return getPendingQuantities(orders, [productId], excludeOrderId)[productId];
+}
+
 export interface QueueRow {
   id: string;
   status: OrderStatus;

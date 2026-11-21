@@ -6,6 +6,8 @@ interface StockReviewTableProps {
   items: StoredOrder["items"];
   /** Tồn hiện tại THÔ theo productId do server tính lúc render; thiếu = 0. */
   stock: Readonly<Record<string, number>>;
+  /** Số lượng các đơn pending KHÁC đang chờ theo productId (chỉ tham khảo); thiếu = 0. */
+  pendingOthers: Readonly<Record<string, number>>;
 }
 
 /** Có dòng đặt nhiều hơn Tồn hiện tại thô (thiếu = 0) thì không Xác nhận được. */
@@ -16,7 +18,7 @@ export function hasShortage(items: StoredOrder["items"], stock: Readonly<Record<
 const NUM = "w-14 text-right tabular-nums sm:w-24";
 
 /** Bảng duyệt đơn `pending`: số đặt cạnh Tồn hiện tại. Số tĩnh, chỉ mới khi tải lại trang. */
-export function StockReviewTable({ items, stock }: StockReviewTableProps) {
+export function StockReviewTable({ items, stock, pendingOthers }: StockReviewTableProps) {
   return (
     <table className="w-full text-sm">
       <caption className="sr-only">Tồn kho các món</caption>
@@ -30,6 +32,9 @@ export function StockReviewTable({ items, stock }: StockReviewTableProps) {
           </th>
           <th scope="col" className={cn(NUM, "font-medium")}>
             Tồn hiện tại
+          </th>
+          <th scope="col" className={cn(NUM, "font-medium")}>
+            Đang chờ (đơn khác)
           </th>
         </tr>
       </thead>
@@ -61,6 +66,9 @@ export function StockReviewTable({ items, stock }: StockReviewTableProps) {
               <td className={cn(NUM, "text-slate-900")}>{item.quantity}</td>
               <td data-testid="stock-current" className={cn(NUM, "text-slate-900")}>
                 {Math.max(0, raw)}
+              </td>
+              <td data-testid="stock-pending" className={cn(NUM, "text-slate-900")}>
+                {pendingOthers[item.productId] ?? 0}
               </td>
             </tr>
           );

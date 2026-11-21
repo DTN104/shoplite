@@ -20,10 +20,12 @@ interface AdminOrderDetailProps {
   now: Date;
   /** Tồn hiện tại thô theo productId; chỉ truyền cho đơn `pending` (hiện StockReviewTable). */
   stock?: Record<string, number>;
+  /** Số lượng các đơn pending khác theo productId; đi cùng `stock`. */
+  pendingOthers?: Record<string, number>;
 }
 
 /** Chi tiết đơn cho nhân viên (Order đầy đủ) kèm nút thao tác theo trạng thái. */
-export function AdminOrderDetail({ order, now, stock }: AdminOrderDetailProps) {
+export function AdminOrderDetail({ order, now, stock, pendingOthers = {} }: AdminOrderDetailProps) {
   return (
     <OrderActionsProvider orderId={order.id}>
       <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
@@ -57,7 +59,7 @@ export function AdminOrderDetail({ order, now, stock }: AdminOrderDetailProps) {
         <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <h2 className="mb-2 text-lg font-semibold">Sản phẩm</h2>
           {order.status === "pending" && stock ? (
-            <StockReviewTable items={order.items} stock={stock} />
+            <StockReviewTable items={order.items} stock={stock} pendingOthers={pendingOthers} />
           ) : (
             <ul className="divide-y divide-slate-100">
               {order.items.map((item) => (

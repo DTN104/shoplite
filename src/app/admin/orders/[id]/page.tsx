@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdmin, type AdminContext } from "@/features/admin/admin-guard";
 import { AdminOrderDetail } from "@/features/admin/components/admin-order-detail";
+import { getPendingQuantities } from "@/features/admin/queue-rules";
 import { inventoryService } from "@/features/inventory/server";
 import { canonicalOrderId } from "@/features/order-access/order-id";
 import { OrderError } from "@/features/orders/order-errors";
@@ -40,9 +41,13 @@ async function loadOrder(ctx: AdminContext, id: string) {
 export default async function AdminOrderPage({ params }: PageProps<"/admin/orders/[id]">) {
   const ctx = await requireAdmin(`/admin/orders/${(await params).id}`);
   const order = await loadOrder(ctx, (await params).id);
-  const stock =
-    order.status === "pending"
-      ? await inventoryService.getRawStockFor(order.items.map((item) => item.productId))
-      : undefined;
-  return <AdminOrderDetail order={order} now={new Date()} stock={stock} />;
+  const productIds = order.items.map((item) => item.productId);
+  const isPending = order.status === "pending";
+  const stock = isPending ? await inventoryService.getRawStockFor(productIds) : undefined;
+  const pendingOthers = isPending
+    ? getPendingQuantities(await orderService.listOrders(ctx), productIds, order.id)
+    : undefined;
+  return (
+    <AdminOrderDetail order={order} now={new Date()} stock={stock} pendingOthers={pendingOthers} />
+  );
 }

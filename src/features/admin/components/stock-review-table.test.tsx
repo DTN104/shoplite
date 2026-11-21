@@ -15,10 +15,10 @@ const item = (productId: string, name: string, quantity: number) => ({
 
 describe("StockReviewTable", () => {
   it("có caption sr-only, th scope col/row, ảnh aria-hidden và tên món không phải link", () => {
-    render(<StockReviewTable items={[item("a", "Cáp", 2)]} stock={{ a: 5 }} />);
+    render(<StockReviewTable items={[item("a", "Cáp", 2)]} stock={{ a: 5 }} pendingOthers={{}} />);
     expect(screen.getByRole("table", { name: "Tồn kho các món" })).toBeInTheDocument();
     expect(screen.getByText("Tồn kho các món").className).toContain("sr-only");
-    for (const name of ["Sản phẩm", "Đặt", "Tồn hiện tại"]) {
+    for (const name of ["Sản phẩm", "Đặt", "Tồn hiện tại", "Đang chờ (đơn khác)"]) {
       expect(screen.getByRole("columnheader", { name })).toHaveAttribute("scope", "col");
     }
     expect(screen.getByRole("rowheader", { name: /Cáp/ })).toHaveAttribute("scope", "row");
@@ -32,6 +32,7 @@ describe("StockReviewTable", () => {
       <StockReviewTable
         items={[item("a", "A", 1), item("b", "B", 4), item("c", "C", 3)]}
         stock={{ a: 0, b: 3, c: 3 }}
+        pendingOthers={{}}
       />,
     );
     const rows = screen.getAllByTestId("stock-review-row");
@@ -44,11 +45,30 @@ describe("StockReviewTable", () => {
   });
 
   it("tồn thô âm hiển thị 0 và vẫn đánh dấu; món thiếu trong map coi như tồn 0", () => {
-    render(<StockReviewTable items={[item("a", "A", 1), item("z", "Z", 1)]} stock={{ a: -2 }} />);
+    render(
+      <StockReviewTable
+        items={[item("a", "A", 1), item("z", "Z", 1)]}
+        stock={{ a: -2 }}
+        pendingOthers={{}}
+      />,
+    );
     const [a, z] = screen.getAllByTestId("stock-review-row");
     expect(within(a).getByTestId("stock-current")).toHaveTextContent("0");
     expect(within(a).getByTestId("stock-short")).toBeInTheDocument();
     expect(within(z).getByTestId("stock-current")).toHaveTextContent("0");
     expect(within(z).getByTestId("stock-short")).toBeInTheDocument();
+  });
+
+  it("cột Đang chờ hiện số đơn khác theo món, thiếu = 0", () => {
+    render(
+      <StockReviewTable
+        items={[item("a", "A", 1), item("b", "B", 1)]}
+        stock={{ a: 3, b: 3 }}
+        pendingOthers={{ a: 2 }}
+      />,
+    );
+    const [a, b] = screen.getAllByTestId("stock-pending");
+    expect(a).toHaveTextContent("2");
+    expect(b).toHaveTextContent("0");
   });
 });
