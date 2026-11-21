@@ -89,4 +89,19 @@ describe("inventoryService", () => {
     const stocks = (await service.getStockedProducts()).map((p) => p.stock);
     expect(stocks).toEqual([4, 10, 3]);
   });
+
+  it("getRawStockFor: confirmed trừ đúng, pending/cancelled không trừ, giá trị thô âm, ngoài catalog = 0", async () => {
+    const service = await setup([
+      order("1", "confirmed", "a", 2),
+      order("2", "pending", "a", 3),
+      order("3", "cancelled", "b", 4),
+      order("4", "confirmed", "c", 5),
+    ]);
+    expect(await service.getRawStockFor(["a", "b", "c", "gone"])).toEqual({
+      a: 3,
+      b: 10,
+      c: -2,
+      gone: 0,
+    });
+  });
 });

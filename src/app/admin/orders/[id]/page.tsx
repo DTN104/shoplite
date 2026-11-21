@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdmin, type AdminContext } from "@/features/admin/admin-guard";
 import { AdminOrderDetail } from "@/features/admin/components/admin-order-detail";
+import { inventoryService } from "@/features/inventory/server";
 import { canonicalOrderId } from "@/features/order-access/order-id";
 import { OrderError } from "@/features/orders/order-errors";
 import { orderService } from "@/features/orders/server";
@@ -39,5 +40,9 @@ async function loadOrder(ctx: AdminContext, id: string) {
 export default async function AdminOrderPage({ params }: PageProps<"/admin/orders/[id]">) {
   const ctx = await requireAdmin(`/admin/orders/${(await params).id}`);
   const order = await loadOrder(ctx, (await params).id);
-  return <AdminOrderDetail order={order} now={new Date()} />;
+  const stock =
+    order.status === "pending"
+      ? await inventoryService.getRawStockFor(order.items.map((item) => item.productId))
+      : undefined;
+  return <AdminOrderDetail order={order} now={new Date()} stock={stock} />;
 }

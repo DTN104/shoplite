@@ -8,15 +8,18 @@ import type { StoredOrder } from "@/features/orders/types";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { ADMIN_TAB_BY_STATUS, formatPendingAge } from "../queue-rules";
 import { AdminRecipientCard } from "./admin-recipient-card";
+import { StockReviewTable } from "./stock-review-table";
 
 interface AdminOrderDetailProps {
   order: StoredOrder;
   /** Một lần `new Date()` ở server: tuổi đơn không tự đếm ở client. */
   now: Date;
+  /** Tồn hiện tại thô theo productId; chỉ truyền cho đơn `pending` (hiện StockReviewTable). */
+  stock?: Record<string, number>;
 }
 
 /** Chi tiết đơn cho nhân viên (Order đầy đủ). Story 4.3: chỉ hiển thị, chưa có nút thao tác. */
-export function AdminOrderDetail({ order, now }: AdminOrderDetailProps) {
+export function AdminOrderDetail({ order, now, stock }: AdminOrderDetailProps) {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
       <BackLink href={`/admin?tab=${ADMIN_TAB_BY_STATUS[order.status]}`}>Hàng việc</BackLink>
@@ -39,22 +42,26 @@ export function AdminOrderDetail({ order, now }: AdminOrderDetailProps) {
 
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 className="mb-2 text-lg font-semibold">Sản phẩm</h2>
-        <ul className="divide-y divide-slate-100">
-          {order.items.map((item) => (
-            <li key={item.productId} className="flex items-center gap-4 py-3">
-              <div className="w-14 shrink-0">
-                <ProductImage image={item.image} alt={item.name} size="sm" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium">{item.name}</p>
-                <p className="text-sm text-slate-600">
-                  {formatCurrency(item.unitPrice)} × {item.quantity}
-                </p>
-              </div>
-              <span className="font-semibold">{formatCurrency(item.lineTotal)}</span>
-            </li>
-          ))}
-        </ul>
+        {order.status === "pending" && stock ? (
+          <StockReviewTable items={order.items} stock={stock} />
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {order.items.map((item) => (
+              <li key={item.productId} className="flex items-center gap-4 py-3">
+                <div className="w-14 shrink-0">
+                  <ProductImage image={item.image} alt={item.name} size="sm" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">{item.name}</p>
+                  <p className="text-sm text-slate-600">
+                    {formatCurrency(item.unitPrice)} × {item.quantity}
+                  </p>
+                </div>
+                <span className="font-semibold">{formatCurrency(item.lineTotal)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <OrderTotals order={order} />
       </section>
 

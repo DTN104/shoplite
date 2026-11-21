@@ -7,6 +7,7 @@ import AdminOrderPage, { dynamic, generateMetadata } from "./page";
 const mocks = vi.hoisted(() => ({
   requireAdmin: vi.fn(),
   getOrderForStaff: vi.fn(),
+  getRawStockFor: vi.fn(),
   ctx: { admin: true },
 }));
 
@@ -15,6 +16,9 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+}));
+vi.mock("@/features/inventory/server", () => ({
+  inventoryService: { getRawStockFor: mocks.getRawStockFor },
 }));
 vi.mock("@/features/orders/server", () => ({
   orderService: { getOrderForStaff: mocks.getOrderForStaff },
@@ -66,6 +70,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   mocks.requireAdmin.mockReset().mockResolvedValue(mocks.ctx);
   mocks.getOrderForStaff.mockReset().mockResolvedValue(order());
+  mocks.getRawStockFor.mockReset().mockResolvedValue({ p010: 1 });
 });
 afterEach(() => vi.useRealTimers());
 
@@ -119,7 +124,6 @@ describe("trang /admin/orders/[id] - nội dung", () => {
     expect(screen.getByText(/Đặt lúc/)).toHaveTextContent("· Chờ 5 giờ");
 
     expect(screen.getByText("Cáp USB-C")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Cáp USB-C" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Cáp USB-C" })).toBeNull();
     expect(screen.getByTestId("order-discount")).toHaveTextContent("GIAM50K");
 
@@ -171,6 +175,27 @@ describe("trang /admin/orders/[id] - nội dung", () => {
       await renderPage();
       expect(screen.queryByRole("button")).toBeNull();
       expect(screen.getByText(/Đặt lúc/)).not.toHaveTextContent("Chờ ");
+    },
+  );
+});
+
+describe("trang /admin/orders/[id] - bảng tồn kho (Story 4.5)", () => {
+  it("đơn pending: StockReviewTable thay danh sách món, đánh dấu khi đặt 2 > tồn 1", async () => {
+    await renderPage();
+    expect(mocks.getRawStockFor).toHaveBeenCalledExactlyOnceWith(["p010"]);
+    expect(screen.getByRole("table", { name: "Tồn kho các món" })).toBeInTheDocument();
+    expect(screen.getByTestId("stock-short")).toHaveTextContent("Không đủ hàng");
+    expect(screen.getByTestId("stock-current")).toHaveTextContent("1");
+  });
+
+  it.each<OrderStatus>(["confirmed", "shipping", "delivered", "cancelled"])(
+    "đơn %s: không bảng, không đọc tồn, vẫn có danh sách món",
+    async (status) => {
+      mocks.getOrderForStaff.mockResolvedValue(order(status));
+      await renderPage();
+      expect(screen.queryByRole("table")).toBeNull();
+      expect(mocks.getRawStockFor).not.toHaveBeenCalled();
+      expect(screen.getByRole("img", { name: "Cáp USB-C" })).toBeInTheDocument();
     },
   );
 });

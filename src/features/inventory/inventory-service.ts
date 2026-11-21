@@ -21,6 +21,13 @@ export function createInventoryService({ repository, getBaseProducts }: Inventor
 
   return {
     withCurrentStock,
+    /** Tồn hiện tại THÔ (có thể < 0, để so với số đặt) cho các món của một đơn; ngoài catalog = Tồn gốc 0. */
+    async getRawStockFor(productIds: readonly string[]): Promise<Record<string, number>> {
+      const catalog = new Map(getBaseProducts().map((p) => [p.id, p.stock]));
+      const bases = productIds.map((id) => ({ id, stock: catalog.get(id) ?? 0 }));
+      const current = computeCurrentStocks(bases, await repository.findAll());
+      return Object.fromEntries(current);
+    },
     getStockedProducts: () => withCurrentStock(getBaseProducts()),
     async getStockedProductBySlug(slug: string): Promise<Product | undefined> {
       const base = getBaseProducts().find((product) => product.slug === slug);
