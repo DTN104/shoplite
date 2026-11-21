@@ -10,6 +10,13 @@ import { CheckoutForm } from "./checkout-form";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }));
 
+/** Thay fetch: /api/stock luôn lỗi 500 (bị bỏ qua êm), còn lại chuyển cho `mock` để đếm lượt gọi. */
+function stubFetch(mock: (url: string, init?: RequestInit) => Promise<Response>) {
+  vi.stubGlobal("fetch", (url: string, init?: RequestInit) =>
+    url === "/api/stock" ? Promise.resolve(new Response("", { status: 500 })) : mock(url, init),
+  );
+}
+
 describe("<CheckoutForm />", () => {
   beforeEach(() => {
     cartStore.reset();
@@ -30,7 +37,7 @@ describe("<CheckoutForm />", () => {
 
   it("hiển thị lỗi validate khi gửi form trống và không gọi API", async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     const user = userEvent.setup();
     render(<CheckoutForm />);
 
@@ -57,7 +64,7 @@ describe("<CheckoutForm />", () => {
       .mockResolvedValue(
         new Response(JSON.stringify({ id: "SL-20261021-ABC123" }), { status: 201 }),
       );
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     const user = userEvent.setup();
     render(<CheckoutForm />);
 
@@ -78,27 +85,28 @@ describe("<CheckoutForm />", () => {
     expect(cartStore.getSnapshot().items).toEqual([]);
   });
 
-  it("hiển thị thông báo lỗi từ server", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            error: { code: "INSUFFICIENT_STOCK", message: "Sản phẩm đã hết hàng" },
-          }),
-          { status: 409 },
-        ),
-      ),
+  it("hiển thị thông báo lỗi từ server, đồng bộ lại tồn và không khóa nút đặt hàng", async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url === "/api/stock"
+        ? new Response(JSON.stringify({ stock: { p010: 1 } }))
+        : new Response(
+            JSON.stringify({
+              error: { code: "INSUFFICIENT_STOCK", message: "Sản phẩm đã hết hàng" },
+            }),
+            { status: 409 },
+          ),
     );
+    vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<CheckoutForm />);
 
-    await user.type(screen.getByLabelText(/Họ và tên/), "Nguyễn Văn A");
-    await user.type(screen.getByLabelText(/Số điện thoại/), "0912345678");
-    await user.type(screen.getByLabelText(/Địa chỉ giao hàng/), "12 Nguyễn Huệ, Quận 1, TP.HCM");
+    await fillCustomerInfo(user);
     await user.click(screen.getByRole("button", { name: "Đặt hàng" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Sản phẩm đã hết hàng");
+    await vi.waitFor(() => expect(cartStore.getSnapshot().items[0].stock).toBe(1));
+    expect(cartStore.getSnapshot().items[0].quantity).toBe(2);
+    expect(screen.getByRole("button", { name: "Đặt hàng" })).toBeEnabled();
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -135,7 +143,7 @@ describe("<CheckoutForm />", () => {
         .mockResolvedValue(
           new Response(JSON.stringify({ id: "SL-20261108-ABC123" }), { status: 201 }),
         );
-      vi.stubGlobal("fetch", fetchMock);
+      stubFetch(fetchMock);
       appliedCouponStore.apply(SHOPLITE10);
       const user = userEvent.setup();
       render(<CheckoutForm />);
@@ -158,7 +166,7 @@ describe("<CheckoutForm />", () => {
         .mockResolvedValue(
           new Response(JSON.stringify({ id: "SL-20261108-ABC123" }), { status: 201 }),
         );
-      vi.stubGlobal("fetch", fetchMock);
+      stubFetch(fetchMock);
       const user = userEvent.setup();
       render(<CheckoutForm />);
 
@@ -186,7 +194,7 @@ describe("<CheckoutForm />", () => {
         .mockResolvedValueOnce(
           new Response(JSON.stringify({ id: "SL-20261108-ABC123" }), { status: 201 }),
         );
-      vi.stubGlobal("fetch", fetchMock);
+      stubFetch(fetchMock);
       appliedCouponStore.apply(SHOPLITE10);
       const user = userEvent.setup();
       render(<CheckoutForm />);

@@ -13,6 +13,7 @@ const SERVER_ONLY_MODULES = [
   "@/features/catalog/catalog-data",
   "@/features/coupons/coupon-service",
   "@/features/orders/server",
+  "@/features/inventory/server",
   "@/features/order-access/order-grant",
   "@/features/order-access/verify-lookup",
   "@/features/order-access/lookup-limiter",
