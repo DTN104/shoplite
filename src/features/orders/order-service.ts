@@ -11,11 +11,18 @@ import { maskOrder, type MaskedOrder } from "@/features/order-access/mask-order"
 import { verifyLookup } from "@/features/order-access/verify-lookup";
 import { clampStock, computeCurrentStocks, type StockBase } from "@/features/inventory/stock-rules";
 import type { AdminContext } from "@/features/admin/admin-guard";
-import { OrderError } from "./order-errors";
+import { OrderError, ORDER_STATUS_CONFLICT_MESSAGE } from "./order-errors";
 import type { OrderRepository } from "./order-repository";
-import type { Order, OrderItem, StoredOrder } from "./types";
+import { transitionOrder } from "./order-transitions";
+import type { Order, OrderItem, OrderStatus, StoredOrder } from "./types";
 
 const MAX_ID_ATTEMPTS = 3;
+
+/** Trạng thái kỳ vọng + đích nhân viên gửi (đã qua order-admin-schema ở route). */
+export interface StaffTransitionInput {
+  from: OrderStatus;
+  to: OrderStatus;
+}
 
 export interface OrderServiceDeps {
   repository: OrderRepository;
@@ -39,6 +46,27 @@ function mergeItems(items: { productId: string; quantity: number }[]) {
     merged.set(item.productId, (merged.get(item.productId) ?? 0) + item.quantity);
   }
   return [...merged.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+}
+
+/** Giá trị thô (có thể < 0) so với số đặt; thiếu thì ném 409 INSUFFICIENT_STOCK (không PII trong log). */
+function assertStockAvailable(
+  currentStocks: ReadonlyMap<string, number>,
+  lines: readonly { productId: string; name: string; quantity: number }[],
+) {
+  for (const { productId, name, quantity } of lines) {
+    const current = currentStocks.get(productId) ?? 0;
+    if (quantity > current) {
+      // Chỉ productId, không PII: nguồn đo SM-C2.
+      console.warn(JSON.stringify({ event: "insufficient_stock", productId }));
+      const available = clampStock(current);
+      throw new OrderError(
+        "INSUFFICIENT_STOCK",
+        available === 0
+          ? `Sản phẩm "${name}" đã hết hàng`
+          : `Sản phẩm "${name}" chỉ còn ${available} sản phẩm`,
+      );
+    }
+  }
 }
 
 export function createOrderService({
@@ -142,21 +170,14 @@ export function createOrderService({
       // Kiểm trùng mã và ghi nằm trong cùng transaction; trùng thì thử lại tối đa 3 lần.
       const saved = await repository.transaction(async (tx) => {
         // Kiểm tồn nằm cùng transaction với save: giá trị thô, đơn pending không giữ kho.
-        const currentStocks = computeCurrentStocks(stockBases, await tx.findAll());
-        for (const { id, name } of stockBases) {
-          const available = clampStock(currentStocks.get(id) ?? 0);
-          const requested = mergedItems.find((item) => item.productId === id)?.quantity ?? 0;
-          if (requested > (currentStocks.get(id) ?? 0)) {
-            // Chỉ productId, không PII: nguồn đo SM-C2.
-            console.warn(JSON.stringify({ event: "insufficient_stock", productId: id }));
-            throw new OrderError(
-              "INSUFFICIENT_STOCK",
-              available === 0
-                ? `Sản phẩm "${name}" đã hết hàng`
-                : `Sản phẩm "${name}" chỉ còn ${available} sản phẩm`,
-            );
-          }
-        }
+        assertStockAvailable(
+          computeCurrentStocks(stockBases, await tx.findAll()),
+          stockBases.map(({ id, name }) => ({
+            productId: id,
+            name,
+            quantity: mergedItems.find((item) => item.productId === id)?.quantity ?? 0,
+          })),
+        );
         if (couponFailure) throw couponFailure;
         for (let attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt++) {
           const id = generateId(createdAt);
@@ -182,6 +203,42 @@ export function createOrderService({
       return getOrder(id);
     },
 
+    /**
+     * Nhân viên chuyển đơn một bước. Thứ tự kiểm cố định, trong một transaction: không tồn tại (404)
+     * -> `from` lệch trạng thái đang lưu (ORDER_STATUS_CONFLICT) -> cặp không hợp lệ -> khi sang
+     * confirmed, dòng vượt Tồn hiện tại (INSUFFICIENT_STOCK). Chỉ confirmed trừ kho.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- ctx chỉ để buộc có AdminContext
+    async transitionByStaff(
+      _ctx: AdminContext,
+      id: string,
+      input: StaffTransitionInput,
+    ): Promise<StoredOrder> {
+      return repository.transaction(async (tx) => {
+        const order = await tx.findById(id);
+        if (!order) {
+          throw new OrderError("ORDER_NOT_FOUND", `Không tìm thấy đơn hàng "${id}"`);
+        }
+        if (order.status !== input.from) {
+          throw new OrderError("ORDER_STATUS_CONFLICT", ORDER_STATUS_CONFLICT_MESSAGE);
+        }
+        const next = transitionOrder(order, { actor: "staff", to: input.to }, now());
+        if (input.to === "confirmed") {
+          // Sản phẩm không còn trong catalog có Tồn gốc 0 (AD-4).
+          const bases = order.items.map(({ productId }) => ({
+            id: productId,
+            stock: findProduct(productId)?.stock ?? 0,
+          }));
+          assertStockAvailable(
+            computeCurrentStocks(bases, await tx.findAll()),
+            order.items.map(({ productId, name, quantity }) => ({ productId, name, quantity })),
+          );
+        }
+        await tx.save(next);
+        return next;
+      });
+    },
+
     /** Đơn đã che; chỉ gọi sau khi đã kiểm grant. */
     async getMaskedOrder(id: string): Promise<MaskedOrder> {
       return maskOrder(await getOrder(id));
@@ -201,13 +258,7 @@ export function createOrderService({
         if (!order) {
           throw new OrderError("ORDER_NOT_FOUND", `Không tìm thấy đơn hàng "${id}"`);
         }
-        if (order.status !== "pending") {
-          throw new OrderError(
-            "INVALID_STATUS_TRANSITION",
-            "Chỉ có thể hủy đơn hàng đang ở trạng thái Chờ xác nhận",
-          );
-        }
-        const next: StoredOrder = { ...order, status: "cancelled", updatedAt: now().toISOString() };
+        const next = transitionOrder(order, { actor: "customer", to: "cancelled" }, now());
         await tx.save(next);
         return next;
       });

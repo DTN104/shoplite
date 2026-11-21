@@ -4,11 +4,15 @@ export type OrderErrorCode =
   | "INSUFFICIENT_STOCK"
   | "ORDER_NOT_FOUND"
   | "INVALID_STATUS_TRANSITION"
+  | "ORDER_STATUS_CONFLICT"
   | "COUPON_NOT_FOUND"
   | "COUPON_EXPIRED"
   | "COUPON_MIN_SUBTOTAL_NOT_MET"
   | "UNAUTHORIZED"
   | "TOO_MANY_ATTEMPTS";
+
+/** Message duy nhất của ORDER_STATUS_CONFLICT (nhân viên gửi Trạng thái kỳ vọng đã cũ). */
+export const ORDER_STATUS_CONFLICT_MESSAGE = "Đơn đã được cập nhật ở nơi khác";
 
 const HTTP_STATUS_BY_CODE: Record<OrderErrorCode, number> = {
   VALIDATION_ERROR: 400,
@@ -16,6 +20,7 @@ const HTTP_STATUS_BY_CODE: Record<OrderErrorCode, number> = {
   INSUFFICIENT_STOCK: 409,
   ORDER_NOT_FOUND: 404,
   INVALID_STATUS_TRANSITION: 409,
+  ORDER_STATUS_CONFLICT: 409,
   COUPON_NOT_FOUND: 422,
   COUPON_EXPIRED: 422,
   COUPON_MIN_SUBTOTAL_NOT_MET: 422,
