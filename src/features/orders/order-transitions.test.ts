@@ -16,7 +16,17 @@ const orderWith = (status: OrderStatus): Order => ({
   customer: { fullName: "A", phone: "0900000000", address: "1 A, B, C" },
   shippingMethod: "standard",
   paymentMethod: "cod",
-  items: [],
+  items: [
+    {
+      productId: "p1",
+      slug: "p1",
+      name: "P1",
+      image: { emoji: "x", from: "a", to: "b" },
+      unitPrice: 1,
+      quantity: 3,
+      lineTotal: 3,
+    },
+  ],
   subtotal: 0,
   shippingFee: 0,
   total: 0,
@@ -27,6 +37,7 @@ const ALLOWED: Record<TransitionActor, [OrderStatus, OrderStatus][]> = {
     ["pending", "confirmed"],
     ["pending", "cancelled"],
     ["confirmed", "shipping"],
+    ["confirmed", "cancelled"],
     ["shipping", "delivered"],
   ],
   customer: [["pending", "cancelled"]],
@@ -57,7 +68,12 @@ describe("transitionOrder", () => {
           const run = () =>
             transitionOrder(
               orderWith(from),
-              { actor, to, reason: actor === "staff" ? "out_of_stock" : undefined },
+              {
+                actor,
+                to,
+                reason: actor === "staff" ? "out_of_stock" : undefined,
+                productId: "p1",
+              },
               NOW,
             );
           if (ok) return expect(run().status).toBe(to);
@@ -72,6 +88,37 @@ describe("transitionOrder", () => {
       }
     }
   }
+
+  it("Báo thiếu hàng ghi stockAdjustment của dòng bị báo; thiếu/lạ productId hoặc lý do khác: VALIDATION_ERROR", () => {
+    const order = orderWith("confirmed");
+    const next = transitionOrder(
+      order,
+      { actor: "staff", to: "cancelled", reason: "out_of_stock", productId: "p1" },
+      NOW,
+    );
+    expect(next).toMatchObject({
+      cancelledBy: "staff",
+      cancelReason: "out_of_stock",
+      stockAdjustment: { productId: "p1", quantity: 3 },
+    });
+    for (const bad of [
+      { reason: "out_of_stock" as const },
+      { reason: "out_of_stock" as const, productId: "zz" },
+      { reason: "unreachable" as const, productId: "p1" },
+    ]) {
+      expect(() =>
+        transitionOrder(order, { actor: "staff", to: "cancelled", ...bad }, NOW),
+      ).toThrow(expect.objectContaining({ code: "VALIDATION_ERROR" }));
+    }
+    // Từ chối đơn pending không ghi Điều chỉnh tồn
+    expect(
+      transitionOrder(
+        orderWith("pending"),
+        { actor: "staff", to: "cancelled", reason: "out_of_stock" },
+        NOW,
+      ),
+    ).not.toHaveProperty("stockAdjustment");
+  });
 
   it("test tĩnh: chỉ order-transitions.ts gán status khác pending trong orders/*.ts", () => {
     const dir = path.join(process.cwd(), "src/features/orders");

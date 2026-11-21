@@ -43,6 +43,26 @@ describe("staffTransitionSchema", () => {
     }
   });
 
+  it("Báo thiếu hàng: confirmed -> cancelled cần reason out_of_stock và productId", () => {
+    const ok = { from: "confirmed", to: "cancelled", reason: "out_of_stock", productId: "p010" };
+    expect(staffTransitionSchema.parse(ok)).toEqual(ok);
+    expect(errorsOf({ ...ok, productId: undefined })).toHaveProperty("productId");
+    expect(errorsOf({ ...ok, productId: "" })).toHaveProperty("productId");
+    expect(errorsOf({ ...ok, reason: "unreachable" })).toHaveProperty("reason");
+    expect(errorsOf({ from: "confirmed", to: "cancelled" })).toHaveProperty("reason");
+  });
+
+  it("Từ chối từ trạng thái khác vẫn chỉ cần reason, productId lạ bị bỏ", () => {
+    expect(
+      staffTransitionSchema.parse({
+        from: "pending",
+        to: "cancelled",
+        reason: "unreachable",
+        productId: "x",
+      }),
+    ).toEqual({ from: "pending", to: "cancelled", reason: "unreachable" });
+  });
+
   it("body không phải object: lỗi, không ném", () => {
     for (const input of [null, "x", 1, []])
       expect(staffTransitionSchema.safeParse(input).success).toBe(false);

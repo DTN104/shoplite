@@ -11,12 +11,28 @@ const statusField = (label: string) => z.enum(ORDER_STATUSES, { error: `${label}
 export const staffTransitionSchema = z.discriminatedUnion(
   "to",
   [
-    // Biến thể Từ chối đứng trước: `to: "cancelled"` luôn cần `reason`.
-    z.object({
-      from: statusField("Trạng thái hiện tại"),
-      to: z.literal("cancelled"),
-      reason: z.enum(CANCEL_REASONS, { error: "Chọn một lý do hợp lệ" }),
-    }),
+    // `to: "cancelled"` tách theo `from`: Báo thiếu hàng (confirmed) cố định lý do + cần productId,
+    // Từ chối thì cần `reason` (Story 5.7). Cặp from/to có hợp lệ hay không do `transitionOrder` quyết định.
+    z.discriminatedUnion(
+      "from",
+      [
+        z.object({
+          from: z.literal("confirmed"),
+          to: z.literal("cancelled"),
+          reason: z.literal("out_of_stock", { error: "Báo thiếu hàng chỉ dùng lý do Hết hàng" }),
+          productId: z.string({ error: "Chọn món bị thiếu hàng" }).min(1, "Chọn món bị thiếu hàng"),
+        }),
+        z.object({
+          from: z.enum(
+            ORDER_STATUSES.filter((s) => s !== "confirmed"),
+            { error: "Trạng thái hiện tại không hợp lệ" },
+          ),
+          to: z.literal("cancelled"),
+          reason: z.enum(CANCEL_REASONS, { error: "Chọn một lý do hợp lệ" }),
+        }),
+      ],
+      { error: "Trạng thái hiện tại không hợp lệ" },
+    ),
     z.object({
       from: statusField("Trạng thái hiện tại"),
       to: z.enum(["pending", "confirmed", "shipping", "delivered"], {

@@ -180,8 +180,15 @@ describe("trang /admin/orders/[id] - nội dung", () => {
   ])("đơn %s: chỉ có StepButton đúng nhãn (nếu có), không tuổi đơn", async (status, label) => {
     mocks.getOrderForStaff.mockResolvedValue(order(status));
     await renderPage();
-    const names = screen.queryAllByRole("button").map((b) => b.textContent);
+    // Đơn confirmed còn nút Báo thiếu hàng ở từng dòng món (Story 5.7)
+    const names = screen
+      .queryAllByRole("button")
+      .map((b) => b.textContent)
+      .filter((t) => t !== "Báo thiếu hàng");
     expect(names).toEqual(label ? [`${label} đơn ${ID}`] : []);
+    expect(screen.queryAllByTestId("shortage-report-button")).toHaveLength(
+      status === "confirmed" ? 1 : 0,
+    );
     expect(screen.getByText(/Đặt lúc/)).not.toHaveTextContent("Chờ ");
   });
 });

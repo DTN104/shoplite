@@ -14,12 +14,15 @@ describe("parseNotice", () => {
     expect(parseNotice("delivered", ID)).toBe(`Đơn ${ID} đã chuyển sang Đã giao`);
   });
 
+  it("shortage ra câu Đã báo thiếu hàng", () => {
+    expect(parseNotice("shortage", ID)).toBe(`Đã báo thiếu hàng, đơn ${ID} bị từ chối`);
+  });
+
   it("mã lạ, thiếu, mảng hoặc mã đơn sai dạng thì bỏ qua", () => {
     expect(parseNotice("hack", ID)).toBeUndefined();
     expect(parseNotice("confirmed", "<b>x</b>")).toBeUndefined();
     expect(parseNotice("confirmed", undefined)).toBeUndefined();
     expect(parseNotice(["confirmed"], ID)).toBeUndefined();
-    expect(parseNotice("shortage", ID)).toBeUndefined();
   });
 
   it("noticeUrl dựng URL hàng việc", () => {

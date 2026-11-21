@@ -99,7 +99,6 @@ describe("transitionByStaff - cặp hợp lệ", () => {
   });
 
   it.each<[OrderStatus, OrderStatus]>([
-    ["confirmed", "cancelled"],
     ["pending", "shipping"],
     ["pending", "delivered"],
     ["confirmed", "pending"],
@@ -112,7 +111,7 @@ describe("transitionByStaff - cặp hợp lệ", () => {
   ])("nhân viên %s -> %s bị 409 INVALID_STATUS_TRANSITION, đơn không đổi", async (from, to) => {
     const { service, repo } = make([seeded("SL-A", from)], 5);
     const input = to === "cancelled" ? { from, to, reason: "out_of_stock" as const } : { from, to };
-    const error = await codeOf(service.transitionByStaff(staff, "SL-A", input));
+    const error = await codeOf(service.transitionByStaff(staff, "SL-A", input as never));
     expect(error.code).toBe("INVALID_STATUS_TRANSITION");
     expect(error.httpStatus).toBe(409);
     expect((await repo.findById("SL-A"))?.status).toBe(from);

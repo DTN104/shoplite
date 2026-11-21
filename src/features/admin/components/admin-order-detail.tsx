@@ -9,6 +9,7 @@ import { formatCurrency, formatDateTime } from "@/lib/format";
 import { ADMIN_TAB_BY_STATUS, formatPendingAge, isOverdue } from "../queue-rules";
 import { PendingAge } from "./pending-age";
 import { OrderActionError, OrderActionsProvider } from "./order-actions";
+import { ShortageReport } from "./shortage-report";
 import { ReviewActions } from "./review-actions";
 import { DetailStepButton } from "./detail-step-button";
 import { AdminRecipientCard } from "./admin-recipient-card";
@@ -60,6 +61,8 @@ export function AdminOrderDetail({ order, now, stock, pendingOthers = {} }: Admi
           <h2 className="mb-2 text-lg font-semibold">Sản phẩm</h2>
           {order.status === "pending" && stock ? (
             <StockReviewTable items={order.items} stock={stock} pendingOthers={pendingOthers} />
+          ) : order.status === "confirmed" ? (
+            <ShortageReport items={order.items} />
           ) : (
             <ul className="divide-y divide-slate-100">
               {order.items.map((item) => (

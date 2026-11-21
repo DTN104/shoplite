@@ -21,7 +21,9 @@ const MAX_ID_ATTEMPTS = 3;
 /** Trạng thái kỳ vọng + đích nhân viên gửi (đã qua order-admin-schema ở route). */
 export type StaffTransitionInput =
   | { from: OrderStatus; to: Exclude<OrderStatus, "cancelled"> }
-  | { from: OrderStatus; to: "cancelled"; reason: CancelReason };
+  | { from: Exclude<OrderStatus, "confirmed">; to: "cancelled"; reason: CancelReason }
+  /** Báo thiếu hàng: hủy đơn `confirmed` và ghi Điều chỉnh tồn cho món `productId`. */
+  | { from: "confirmed"; to: "cancelled"; reason: "out_of_stock"; productId: string };
 
 export interface OrderServiceDeps {
   repository: OrderRepository;
@@ -223,7 +225,12 @@ export function createOrderService({
         }
         const next = transitionOrder(
           order,
-          { actor: "staff", to: input.to, reason: "reason" in input ? input.reason : undefined },
+          {
+            actor: "staff",
+            to: input.to,
+            reason: "reason" in input ? input.reason : undefined,
+            productId: "productId" in input ? input.productId : undefined,
+          },
           now(),
         );
         if (input.to === "confirmed") {
