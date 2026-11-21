@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test("khách hàng tìm sản phẩm, thêm vào giỏ và đặt hàng thành công", async ({ page }) => {
+test("khách hàng tìm sản phẩm, thêm vào giỏ và đặt hàng thành công", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Mua sắm ngay" }).click();
 
@@ -36,6 +40,21 @@ test("khách hàng tìm sản phẩm, thêm vào giỏ và đặt hàng thành c
   await expect(recipient).toContainText("•••••• 5678");
   await expect(recipient).not.toContainText("0912345678");
   await expect(page.getByTestId("cart-count")).toHaveCount(0);
+
+  // Context trình duyệt mới (không có grant) phải tra cứu qua form mới xem được đơn
+  const orderId = page.url().match(/SL-\d{8}-[0-9A-F]{6}/)![0];
+  const stranger = await browser.newContext({ baseURL });
+  try {
+    const other = await stranger.newPage();
+    await other.goto(`/orders/${orderId}`);
+    await expect(other.getByTestId("masked-recipient")).toHaveCount(0);
+    await other.getByLabel("4 số cuối số điện thoại").fill("5678");
+    await other.getByRole("button", { name: "Tra cứu" }).click();
+    await expect(other.getByTestId("masked-recipient")).toContainText("•••••• 5678");
+    await expect(other.getByTestId("masked-recipient")).not.toContainText("0912345678");
+  } finally {
+    await stranger.close();
+  }
 });
 
 test("khách hàng dùng mã SHOPLITE10 khi thanh toán", async ({ page }) => {

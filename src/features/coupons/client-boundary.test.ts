@@ -38,15 +38,36 @@ function resolveAlias(alias: string): string | undefined {
   return [".ts", ".tsx", "/index.ts", "/index.tsx"].map((ext) => base + ext).find(existsSync);
 }
 
-/** Mọi module server-only mà `file` chạm tới kể cả bắc cầu (qua file nguồn trong src). */
-function reachableServerModules(file: string, seen = new Set<string>()): string[] {
+/** Nguồn đồ thị import: tên file → các specifier giá trị; tách ra để test bằng đồ thị giả. */
+interface ImportGraph {
+  imports(file: string): string[];
+  resolve(file: string, specifier: string): string | undefined;
+}
+
+const realGraph: ImportGraph = {
+  imports: (file) => importsOf(readFileSync(file, "utf8")),
+  resolve: (file, specifier) => resolveAlias(toAlias(file, specifier)),
+};
+
+const isForbidden = (alias: string) =>
+  SERVER_ONLY_MODULES.includes(alias) || alias.startsWith("node:");
+
+/** Chuỗi import từ `file` tới từng module cấm chạm được (kể cả bắc cầu), mỗi phần tử dạng "a → b → module". */
+function forbiddenChains(
+  file: string,
+  graph: ImportGraph = realGraph,
+  label: (file: string) => string = (f) => path.relative(SRC_DIR, f),
+  seen = new Set<string>(),
+  trail: string[] = [],
+): string[] {
   if (seen.has(file)) return [];
   seen.add(file);
-  return importsOf(readFileSync(file, "utf8")).flatMap((specifier) => {
+  const here = [...trail, label(file)];
+  return graph.imports(file).flatMap((specifier) => {
     const alias = toAlias(file, specifier);
-    if (SERVER_ONLY_MODULES.includes(alias)) return [alias];
-    const next = resolveAlias(alias);
-    return next ? reachableServerModules(next, seen) : [];
+    if (isForbidden(alias)) return [[...here, alias].join(" → ")];
+    const next = graph.resolve(file, specifier);
+    return next ? forbiddenChains(next, graph, label, seen, here) : [];
   });
 }
 
@@ -67,34 +88,27 @@ describe("ranh giới client/server", () => {
     expect(clientFiles.some((file) => file.endsWith("coupon-field.tsx"))).toBe(true);
   });
 
-  it("Client Component không import dữ liệu mã giảm giá hay module chỉ chạy ở server", () => {
-    const violations = clientFiles.flatMap((file) =>
-      importsOf(readFileSync(file, "utf8"))
-        .map((specifier) => toAlias(file, specifier))
-        .filter((alias) => SERVER_ONLY_MODULES.includes(alias))
-        .map((alias) => `${path.relative(SRC_DIR, file)} → ${alias}`),
-    );
-
-    expect(violations).toEqual([]);
+  it("Client Component không import (kể cả bắc cầu) module server-only hay node:*", () => {
+    expect(clientFiles.flatMap((file) => forbiddenChains(file))).toEqual([]);
   });
 
-  it("không import bắc cầu tới module server-only (kể cả order-access phía server)", () => {
-    const violations = clientFiles.flatMap((file) =>
-      [...new Set(reachableServerModules(file))].map(
-        (alias) => `${path.relative(SRC_DIR, file)} → ${alias}`,
-      ),
-    );
-
-    expect(violations).toEqual([]);
-  });
-
-  it("bắt được import bắc cầu (phát hiện qua file trung gian)", () => {
-    const tmp = path.join(SRC_DIR, "features/order-access");
-    // order-grant import node:crypto trực tiếp, nên module này phải nằm trong danh sách server-only
-    expect(SERVER_ONLY_MODULES).toContain("@/features/order-access/order-grant");
-    expect(reachableServerModules(path.join(tmp, "order-grant.ts"))).toEqual([]);
-    expect(
-      reachableServerModules(path.join(SRC_DIR, "app/api/orders/lookup/route.ts")).length,
-    ).toBeGreaterThan(0);
+  it("forbiddenChains bắt được import gián tiếp trong đồ thị giả, kèm chuỗi import", () => {
+    const edges: Record<string, string[]> = {
+      "client.tsx": ["./a"],
+      a: ["./b"],
+      b: ["@/features/orders/server", "node:fs"],
+      "safe.tsx": ["./c"],
+      c: [],
+    };
+    const fake: ImportGraph = {
+      imports: (file) => edges[file] ?? [],
+      resolve: (file, specifier) => (specifier.startsWith("./") ? specifier.slice(2) : undefined),
+    };
+    const id = (file: string) => file;
+    expect(forbiddenChains("client.tsx", fake, id)).toEqual([
+      "client.tsx → a → b → @/features/orders/server",
+      "client.tsx → a → b → node:fs",
+    ]);
+    expect(forbiddenChains("safe.tsx", fake, id)).toEqual([]);
   });
 });
