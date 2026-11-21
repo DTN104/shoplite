@@ -4,11 +4,11 @@ import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_QUANTITY_PER_ITEM, toCartItem } from "@/features/cart/cart-reducer";
 import { cartStore } from "@/features/cart/cart-store";
-import { getAllProducts, getProductById } from "@/features/catalog/catalog-service";
+import { getCatalogProducts, getProductById } from "@/features/catalog/catalog-data";
 import { WISHLIST_STORAGE_KEY, wishlistStore } from "@/features/wishlist/wishlist-store";
 import { WishlistView } from "./wishlist-view";
 
-const products = getAllProducts();
+const products = getCatalogProducts();
 const p001 = getProductById("p001")!;
 const p002 = getProductById("p002")!;
 const p004 = getProductById("p004")!; // hết hàng

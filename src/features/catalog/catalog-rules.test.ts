@@ -8,8 +8,14 @@ import {
   getStockStatus,
   parseCatalogQuery,
   queryProducts,
-} from "./catalog-service";
+} from "./catalog-rules";
+import { getCatalogProducts, getCategories } from "./catalog-data";
 import type { CatalogQuery } from "./types";
+
+const products = getCatalogProducts();
+const categories = getCategories();
+const run = (q: CatalogQuery, pageSize?: number) =>
+  queryProducts(products, categories, q, pageSize);
 
 const query = (overrides: Partial<CatalogQuery> = {}): CatalogQuery => ({
   ...DEFAULT_CATALOG_QUERY,
@@ -69,33 +75,33 @@ describe("parseCatalogQuery", () => {
 
 describe("queryProducts", () => {
   it("tìm kiếm không phân biệt dấu và hoa thường", () => {
-    const withAccent = queryProducts(query({ q: "Bàn phím" }));
-    const withoutAccent = queryProducts(query({ q: "ban phim" }));
+    const withAccent = run(query({ q: "Bàn phím" }));
+    const withoutAccent = run(query({ q: "ban phim" }));
     expect(withAccent.total).toBeGreaterThan(0);
     expect(withoutAccent.items.map((p) => p.id)).toEqual(withAccent.items.map((p) => p.id));
   });
 
   it("tìm theo thương hiệu và tag", () => {
-    expect(queryProducts(query({ q: "fitlife" })).total).toBe(2);
-    expect(queryProducts(query({ q: "chống ồn" })).items[0].id).toBe("p001");
+    expect(run(query({ q: "fitlife" })).total).toBe(2);
+    expect(run(query({ q: "chống ồn" })).items[0].id).toBe("p001");
   });
 
   it("lọc theo danh mục", () => {
-    const result = queryProducts(query({ category: "nha-thong-minh" }));
+    const result = run(query({ category: "nha-thong-minh" }));
     expect(result.total).toBe(2);
     expect(result.items.every((p) => p.categorySlug === "nha-thong-minh")).toBe(true);
   });
 
   it("lọc theo khoảng giá (bao gồm 2 đầu mút)", () => {
-    const result = queryProducts(query({ minPrice: 450_000, maxPrice: 750_000 }));
+    const result = run(query({ minPrice: 450_000, maxPrice: 750_000 }));
     expect(result.items.map((p) => p.price).sort((a, b) => a - b)).toEqual([
       450_000, 590_000, 690_000, 750_000,
     ]);
   });
 
   it("ẩn sản phẩm hết hàng khi bật inStock", () => {
-    const all = queryProducts(query(), undefined, 100);
-    const inStock = queryProducts(query({ inStock: true }), undefined, 100);
+    const all = run(query(), 100);
+    const inStock = run(query({ inStock: true }), 100);
     expect(all.total - inStock.total).toBe(2);
     expect(inStock.items.every((p) => p.stock > 0)).toBe(true);
   });
@@ -104,19 +110,19 @@ describe("queryProducts", () => {
     ["price-asc", (a: number, b: number) => a <= b],
     ["price-desc", (a: number, b: number) => a >= b],
   ] as const)("sắp xếp %s", (sort, inOrder) => {
-    const prices = queryProducts(query({ sort }), undefined, 100).items.map((p) => p.price);
+    const prices = run(query({ sort }), 100).items.map((p) => p.price);
     prices.slice(1).forEach((price, index) => expect(inOrder(prices[index], price)).toBe(true));
   });
 
   it("sắp xếp mới nhất theo createdAt giảm dần", () => {
-    const [first] = queryProducts(query({ sort: "newest" })).items;
+    const [first] = run(query({ sort: "newest" })).items;
     expect(first.id).toBe("p014");
   });
 
   it("phân trang 8 sản phẩm mỗi trang và giới hạn số trang", () => {
-    const page1 = queryProducts(query({ page: 1 }));
-    const page2 = queryProducts(query({ page: 2 }));
-    const tooFar = queryProducts(query({ page: 99 }));
+    const page1 = run(query({ page: 1 }));
+    const page2 = run(query({ page: 2 }));
+    const tooFar = run(query({ page: 99 }));
     expect(page1.items).toHaveLength(8);
     expect(page1.totalPages).toBe(2);
     expect(page2.items.map((p) => p.id)).not.toContain(page1.items[0].id);
@@ -124,7 +130,7 @@ describe("queryProducts", () => {
   });
 
   it("trả về danh sách rỗng nhưng vẫn có 1 trang khi không có kết quả", () => {
-    const result = queryProducts(query({ q: "khongcosanphamnay" }));
+    const result = run(query({ q: "khongcosanphamnay" }));
     expect(result).toMatchObject({ items: [], total: 0, totalPages: 1, page: 1 });
   });
 });
@@ -155,8 +161,8 @@ describe("helpers", () => {
   });
 
   it("getRelatedProducts trả về sản phẩm cùng danh mục, không gồm chính nó", () => {
-    const product = getProductBySlug("tai-nghe-khong-day-soundmax-pro")!;
-    const related = getRelatedProducts(product);
+    const product = getProductBySlug(products, "tai-nghe-khong-day-soundmax-pro")!;
+    const related = getRelatedProducts(products, product);
     expect(related.length).toBeGreaterThan(0);
     expect(related.every((p) => p.categorySlug === product.categorySlug)).toBe(true);
     expect(related.map((p) => p.id)).not.toContain(product.id);

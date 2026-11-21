@@ -1,5 +1,3 @@
-import { categories } from "@/data/categories";
-import { products } from "@/data/products";
 import { normalizeText } from "@/lib/format";
 import {
   CATEGORY_SLUGS,
@@ -29,30 +27,18 @@ export const DEFAULT_CATALOG_QUERY: CatalogQuery = { sort: "featured", page: 1 }
 type SearchParams = Record<string, string | string[] | undefined>;
 
 // ---------------------------------------------------------------------------
-// Truy vấn đơn giản
+// Truy vấn đơn giản (nhận dữ liệu qua tham số, nguồn nằm ở catalog-data.ts)
 // ---------------------------------------------------------------------------
 
-export function getCategories(): Category[] {
-  return categories;
-}
-
-export function getCategoryBySlug(slug: string): Category | undefined {
+export function getCategoryBySlug(categories: Category[], slug: string): Category | undefined {
   return categories.find((category) => category.slug === slug);
 }
 
-export function getAllProducts(): Product[] {
-  return products;
-}
-
-export function getProductBySlug(slug: string): Product | undefined {
+export function getProductBySlug(products: Product[], slug: string): Product | undefined {
   return products.find((product) => product.slug === slug);
 }
 
-export function getProductById(id: string): Product | undefined {
-  return products.find((product) => product.id === id);
-}
-
-export function getFeaturedProducts(limit = 4): Product[] {
+export function getFeaturedProducts(products: Product[], limit = 4): Product[] {
   return products
     .filter((product) => product.featured)
     .sort((a, b) => b.rating - a.rating)
@@ -60,7 +46,7 @@ export function getFeaturedProducts(limit = 4): Product[] {
 }
 
 /** Sản phẩm cùng danh mục (trừ chính nó), ưu tiên đánh giá cao. */
-export function getRelatedProducts(product: Product, limit = 4): Product[] {
+export function getRelatedProducts(products: Product[], product: Product, limit = 4): Product[] {
   return products
     .filter((item) => item.categorySlug === product.categorySlug && item.id !== product.id)
     .sort((a, b) => b.rating - a.rating)
@@ -117,8 +103,8 @@ export function parseCatalogQuery(params: SearchParams): CatalogQuery {
   };
 }
 
-function matchesKeyword(product: Product, keyword: string): boolean {
-  const categoryName = getCategoryBySlug(product.categorySlug)?.name ?? "";
+function matchesKeyword(categories: Category[], product: Product, keyword: string): boolean {
+  const categoryName = getCategoryBySlug(categories, product.categorySlug)?.name ?? "";
   const haystack = normalizeText(
     [product.name, product.brand, product.shortDescription, categoryName, ...product.tags].join(
       " ",
@@ -138,12 +124,13 @@ const comparators: Record<SortOption, (a: Product, b: Product) => number> = {
 };
 
 export function queryProducts(
+  source: Product[],
+  categories: Category[],
   query: CatalogQuery,
-  source: Product[] = products,
   pageSize = PAGE_SIZE,
 ): CatalogResult {
   const filtered = source.filter((product) => {
-    if (query.q && !matchesKeyword(product, query.q)) return false;
+    if (query.q && !matchesKeyword(categories, product, query.q)) return false;
     if (query.category && product.categorySlug !== query.category) return false;
     if (query.minPrice !== undefined && product.price < query.minPrice) return false;
     if (query.maxPrice !== undefined && product.price > query.maxPrice) return false;
