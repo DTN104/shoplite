@@ -1,3 +1,4 @@
+import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
@@ -13,6 +14,10 @@ export const ADMIN_TEST_PASSWORD = "e2e-quan-tri-7f3a9c1b-khong-dung-that";
 
 /** File đơn tạm: E2E không bao giờ ghi vào storage/orders.json thật. */
 const ORDERS_FILE = path.join(tmpdir(), "shoplite-e2e-orders.json");
+
+// Xóa file đơn của lần chạy trước (tồn kho/đơn cũ làm test chập chờn). Worker nạp lại config nên
+// chỉ xóa ở tiến trình chính, trước khi webServer khởi động.
+if (process.env.TEST_WORKER_INDEX === undefined) rmSync(ORDERS_FILE, { force: true });
 
 export default defineConfig({
   testDir: "./e2e",
