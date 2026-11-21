@@ -14,6 +14,8 @@ import { OrderError } from "./order-errors";
 import type { OrderRepository } from "./order-repository";
 import type { Order, OrderItem } from "./types";
 
+const MAX_ID_ATTEMPTS = 3;
+
 export interface OrderServiceDeps {
   repository: OrderRepository;
   findProduct?: (id: string) => Product | undefined;
@@ -121,8 +123,7 @@ export function createOrderService({
         discount = evaluation.discount;
       }
 
-      const order: Order = {
-        id: generateId(createdAt),
+      const draft: Omit<Order, "id"> = {
         status: "pending",
         createdAt: createdAt.toISOString(),
         updatedAt: createdAt.toISOString(),
@@ -140,8 +141,18 @@ export function createOrderService({
         ...calculateOrderTotals(orderItems, shippingMethod, discount),
       };
 
-      await repository.save(order);
-      return maskOrder(order);
+      // Kiểm trùng mã và ghi nằm trong cùng transaction; trùng thì thử lại tối đa 3 lần.
+      const saved = await repository.transaction(async (tx) => {
+        for (let attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt++) {
+          const id = generateId(createdAt);
+          if (await tx.findById(id)) continue;
+          const created: Order = { id, ...draft };
+          await tx.save(created);
+          return created;
+        }
+        throw new Error("Không tạo được mã đơn hàng duy nhất");
+      });
+      return maskOrder(saved);
     },
 
     /** Danh sách đơn đầy đủ cho nhân viên, mới nhất trước. */
@@ -169,15 +180,22 @@ export function createOrderService({
 
     /** Khách hàng chỉ được hủy đơn khi đơn còn ở trạng thái "Chờ xác nhận". */
     async cancelOrder(id: string): Promise<MaskedOrder> {
-      const order = await getOrder(id);
-      if (order.status !== "pending") {
-        throw new OrderError(
-          "INVALID_STATUS_TRANSITION",
-          "Chỉ có thể hủy đơn hàng đang ở trạng thái Chờ xác nhận",
-        );
-      }
-      const cancelled: Order = { ...order, status: "cancelled", updatedAt: now().toISOString() };
-      await repository.save(cancelled);
+      // Đọc, kiểm trạng thái và ghi trong một transaction: hai yêu cầu đồng thời chỉ một cái thắng.
+      const cancelled = await repository.transaction(async (tx) => {
+        const order = await tx.findById(id);
+        if (!order) {
+          throw new OrderError("ORDER_NOT_FOUND", `Không tìm thấy đơn hàng "${id}"`);
+        }
+        if (order.status !== "pending") {
+          throw new OrderError(
+            "INVALID_STATUS_TRANSITION",
+            "Chỉ có thể hủy đơn hàng đang ở trạng thái Chờ xác nhận",
+          );
+        }
+        const next: Order = { ...order, status: "cancelled", updatedAt: now().toISOString() };
+        await tx.save(next);
+        return next;
+      });
       return maskOrder(cancelled);
     },
   };

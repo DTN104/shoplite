@@ -348,6 +348,55 @@ describe("orderService", () => {
   });
 });
 
+describe("orderService - ghi tuần tự (transaction)", () => {
+  it("mã đơn trùng: thử lại với mã mới và không ghi đè đơn cũ", async () => {
+    const repository = createInMemoryOrderRepository();
+    const ids = ["SL-A", "SL-A", "SL-A", "SL-B"];
+    const service = createOrderService({
+      repository,
+      now: () => FIXED_DATE,
+      generateId: () => ids.shift()!,
+    });
+    const first = await service.placeOrder(
+      validInput({ items: [{ productId: "p010", quantity: 1 }] }),
+    );
+    const second = await service.placeOrder(validInput());
+    expect([first.id, second.id]).toEqual(["SL-A", "SL-B"]);
+    const stored = await repository.findAll();
+    expect(stored.map((o) => o.id)).toEqual(["SL-A", "SL-B"]);
+    expect(stored[0].items[0].quantity).toBe(1);
+  });
+
+  it("cả 3 lần mã đều trùng thì ném lỗi và không ghi gì", async () => {
+    const repository = createInMemoryOrderRepository();
+    const service = createOrderService({
+      repository,
+      now: () => FIXED_DATE,
+      generateId: () => "SL-A",
+    });
+    await service.placeOrder(validInput());
+    await expect(service.placeOrder(validInput())).rejects.toThrow("mã đơn hàng duy nhất");
+    expect(await repository.findAll()).toHaveLength(1);
+  });
+
+  it("hai yêu cầu hủy đồng thời: một thành công, một nhận 409 INVALID_STATUS_TRANSITION", async () => {
+    const repository = createInMemoryOrderRepository();
+    const service = createOrderService({
+      repository,
+      now: () => FIXED_DATE,
+      generateId: () => "SL-A",
+    });
+    await service.placeOrder(validInput());
+    const results = await Promise.allSettled([
+      service.cancelOrder("SL-A"),
+      service.cancelOrder("SL-A"),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: "INVALID_STATUS_TRANSITION" });
+  });
+});
+
 describe("generateOrderId", () => {
   it("có dạng SL-YYYYMMDD-XXXXXX", () => {
     expect(generateOrderId(FIXED_DATE)).toMatch(/^SL-20261021-[0-9A-F]{6}$/);
