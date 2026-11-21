@@ -1,5 +1,5 @@
 import { MAX_QUANTITY_PER_ITEM } from "@/features/cart/cart-reducer";
-import { getProductById } from "@/features/catalog/catalog-service";
+import { getProductById } from "@/features/catalog/catalog-data";
 import type { Product } from "@/features/catalog/types";
 import { placeOrderSchema, toFieldErrors } from "@/features/checkout/checkout-schema";
 import { calculateOrderTotals, calculateSubtotal } from "@/features/checkout/pricing";

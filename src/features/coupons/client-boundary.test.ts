@@ -9,6 +9,8 @@ const SRC_DIR = path.join(process.cwd(), "src");
 const SERVER_ONLY_MODULES = [
   "@/features/admin/admin-guard",
   "@/data/coupons",
+  "@/data/products",
+  "@/features/catalog/catalog-data",
   "@/features/coupons/coupon-service",
   "@/features/orders/server",
   "@/features/order-access/order-grant",

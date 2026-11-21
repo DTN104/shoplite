@@ -6,19 +6,20 @@ import { CatalogFilters } from "@/features/catalog/components/catalog-filters";
 import { CategoryPills } from "@/features/catalog/components/category-pills";
 import { Pagination } from "@/features/catalog/components/pagination";
 import { ProductGrid } from "@/features/catalog/components/product-grid";
+import { getCatalogProducts, getCategories } from "@/features/catalog/catalog-data";
 import {
-  getCategories,
   getCategoryBySlug,
   parseCatalogQuery,
   queryProducts,
-} from "@/features/catalog/catalog-service";
+} from "@/features/catalog/catalog-rules";
 
 export const metadata: Metadata = { title: "Sản phẩm" };
 
 export default async function ProductsPage({ searchParams }: PageProps<"/products">) {
   const query = parseCatalogQuery(await searchParams);
-  const result = queryProducts(query);
-  const category = query.category ? getCategoryBySlug(query.category) : undefined;
+  const categories = getCategories();
+  const result = queryProducts(getCatalogProducts(), categories, query);
+  const category = query.category ? getCategoryBySlug(categories, query.category) : undefined;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
@@ -29,7 +30,7 @@ export default async function ProductsPage({ searchParams }: PageProps<"/product
         </p>
       </header>
 
-      <CategoryPills categories={getCategories()} query={query} />
+      <CategoryPills categories={categories} query={query} />
       <CatalogFilters query={query} />
 
       <p className="text-sm text-slate-600" data-testid="result-count">

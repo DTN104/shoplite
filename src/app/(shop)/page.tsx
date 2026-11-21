@@ -5,14 +5,14 @@ import { ProductGrid } from "@/features/catalog/components/product-grid";
 import {
   buildCatalogHref,
   DEFAULT_CATALOG_QUERY,
-  getCategories,
   getFeaturedProducts,
-} from "@/features/catalog/catalog-service";
+} from "@/features/catalog/catalog-rules";
+import { getCatalogProducts, getCategories } from "@/features/catalog/catalog-data";
 import { FREE_SHIPPING_THRESHOLD } from "@/features/checkout/pricing";
 import { formatCurrency } from "@/lib/format";
 
 export default function HomePage() {
-  const featured = getFeaturedProducts(4);
+  const featured = getFeaturedProducts(getCatalogProducts(), 4);
   const categories = getCategories();
 
   return (

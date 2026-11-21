@@ -4,7 +4,7 @@
  * import vào Client Component sẽ làm lộ toàn bộ danh sách mã ra trình duyệt.
  */
 import { COUPONS } from "@/data/coupons";
-import { getProductById } from "@/features/catalog/catalog-service";
+import { getProductById } from "@/features/catalog/catalog-data";
 import type { Product } from "@/features/catalog/types";
 import { toFieldErrors } from "@/features/checkout/checkout-schema";
 import { calculateSubtotal } from "@/features/checkout/pricing";

@@ -29,14 +29,14 @@ Cửa hàng đồ công nghệ mini, dự án mẫu cho bài lab; hướng dẫn
 
 ## Nơi đặt code
 
-- Sản phẩm, danh mục: dữ liệu tĩnh trong `src/data/products.ts`, `src/data/categories.ts`.
+- Sản phẩm, danh mục: dữ liệu tĩnh trong `src/data/products.ts`, `src/data/categories.ts`, chỉ đọc qua `catalog-data.ts` ở server (Client Component không được import, kể cả bắc cầu).
 - Giỏ hàng: `localStorage` của trình duyệt, key `CART_STORAGE_KEY = "shoplite:cart"`.
 - Đơn hàng: file JSON `ORDERS_FILE` (mặc định `DEFAULT_ORDERS_FILE` = `storage/orders.json`, đã gitignore, tự tạo khi ghi).
 - Alias `@/*` trỏ tới `src/*`.
 
 ### Codemap
 
-- Catalog, `src/features/catalog/`: `catalog-service.ts` (`parseCatalogQuery`, `queryProducts`, `buildCatalogHref`, `getProductById`, `PAGE_SIZE`, `LOW_STOCK_THRESHOLD`)
+- Catalog, `src/features/catalog/`: `catalog-rules.ts` (thuần, không import `@/data/*`, dùng được ở client; `parseCatalogQuery`, `queryProducts(products, categories, query)`, `buildCatalogHref`, `getProductBySlug`, `getStockStatus`, `PAGE_SIZE`, `LOW_STOCK_THRESHOLD`), `catalog-data.ts` (chỉ server; `getCatalogProducts` = Tồn gốc tĩnh, `getCategories`, `getProductById`; test `catalog-data-imports.test.ts` giữ danh sách file được import)
 - Cart, `src/features/cart/`: `cart-reducer.ts` (`cartReducer`, `MAX_QUANTITY_PER_ITEM`, `getMaxQuantity`), `cart-store.ts` (`cartStore`), `use-cart.ts` (`useCart`)
 - Checkout, `src/features/checkout/`: `pricing.ts` (`calculateOrderTotals`, `FREE_SHIPPING_THRESHOLD`, `SHIPPING_OPTIONS`), `checkout-schema.ts` (`checkoutFormSchema`, `placeOrderSchema`, `toFieldErrors`), `components/checkout-form.tsx`
 - Orders, `src/features/orders/`: `order-service.ts` (`createOrderService`; `listOrders(ctx)` và `getOrderForStaff(ctx, id)` cần `AdminContext`, khách chỉ có `getMaskedOrder`, `lookupOrder`, `placeOrder`, `cancelOrder` đều trả `MaskedOrder`; không export hàm lấy `Order` đầy đủ cho khách), `order-repository.ts` (`OrderRepository.transaction(work)`: mọi ghi đơn đi qua đây, tuần tự FIFO, gom ghi nguyên tử, không gọi `save`/`transaction` lồng trong `work`; JSON repository dùng chung một snapshot bất biến sâu `StoredOrder` theo đường dẫn qua `singleton`, nạp lười, file hỏng thì ném lỗi chứ không trả `[]`, file bị đổi từ ngoài thì hủy commit), `order-errors.ts` (`OrderError`), `components/cancel-order-button.tsx` (khách hủy đơn bằng cookie grant; 401 báo phiên hết kèm link tra cứu lại, 409 tải lại trang), `server.ts` (`orderRepository`, `orderService`)

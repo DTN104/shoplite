@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getProductById } from "@/features/catalog/catalog-service";
+import { getProductById } from "@/features/catalog/catalog-data";
 import { toCartItem } from "@/features/cart/cart-reducer";
 import { cartStore } from "@/features/cart/cart-store";
 import { appliedCouponStore } from "@/features/coupons/applied-coupon-store";

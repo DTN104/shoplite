@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PriceTag } from "@/components/ui/price-tag";
 import { RatingStars } from "@/components/ui/rating-stars";
 import { AddToCartButton } from "@/features/cart/components/add-to-cart-button";
-import { getDiscountPercent, getStockStatus } from "@/features/catalog/catalog-service";
+import { getDiscountPercent, getStockStatus } from "@/features/catalog/catalog-rules";
 import type { Product } from "@/features/catalog/types";
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button";
 import { ProductImage } from "./product-image";
