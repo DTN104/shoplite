@@ -7,6 +7,7 @@ const SRC_DIR = path.join(process.cwd(), "src");
 
 /** Module chỉ được dùng phía server: import vào Client Component sẽ lộ danh sách mã / dùng node:fs. */
 const SERVER_ONLY_MODULES = [
+  "@/features/admin/admin-guard",
   "@/data/coupons",
   "@/features/coupons/coupon-service",
   "@/features/orders/server",

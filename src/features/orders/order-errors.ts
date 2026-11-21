@@ -6,7 +6,8 @@ export type OrderErrorCode =
   | "INVALID_STATUS_TRANSITION"
   | "COUPON_NOT_FOUND"
   | "COUPON_EXPIRED"
-  | "COUPON_MIN_SUBTOTAL_NOT_MET";
+  | "COUPON_MIN_SUBTOTAL_NOT_MET"
+  | "UNAUTHORIZED";
 
 const HTTP_STATUS_BY_CODE: Record<OrderErrorCode, number> = {
   VALIDATION_ERROR: 400,
@@ -17,6 +18,7 @@ const HTTP_STATUS_BY_CODE: Record<OrderErrorCode, number> = {
   COUPON_NOT_FOUND: 422,
   COUPON_EXPIRED: 422,
   COUPON_MIN_SUBTOTAL_NOT_MET: 422,
+  UNAUTHORIZED: 401,
 };
 
 /** Lỗi nghiệp vụ của đơn hàng - route handler chuyển thành HTTP response tương ứng. */
