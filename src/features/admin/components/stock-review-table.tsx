@@ -8,6 +8,11 @@ interface StockReviewTableProps {
   stock: Readonly<Record<string, number>>;
 }
 
+/** Có dòng đặt nhiều hơn Tồn hiện tại thô (thiếu = 0) thì không Xác nhận được. */
+export function hasShortage(items: StoredOrder["items"], stock: Readonly<Record<string, number>>) {
+  return items.some((item) => item.quantity > (stock[item.productId] ?? 0));
+}
+
 const NUM = "w-14 text-right tabular-nums sm:w-24";
 
 /** Bảng duyệt đơn `pending`: số đặt cạnh Tồn hiện tại. Số tĩnh, chỉ mới khi tải lại trang. */

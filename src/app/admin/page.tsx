@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { EmptyState } from "@/components/ui/empty-state";
 import { requireAdmin } from "@/features/admin/admin-guard";
-import { AdminOrderRow } from "@/features/admin/components/admin-order-row";
+import { parseNotice } from "@/features/admin/admin-notice";
+import { AdminQueueList } from "@/features/admin/components/admin-queue-list";
 import { AdminRefreshButton } from "@/features/admin/components/admin-refresh-button";
 import { ADMIN_TAB_LABELS, AdminTabs } from "@/features/admin/components/admin-tabs";
 import { buildQueue, type AdminTab } from "@/features/admin/queue-rules";
@@ -33,7 +33,8 @@ export async function generateMetadata({ searchParams }: PageProps<"/admin">): P
 
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const ctx = await requireAdmin("/admin");
-  const tab = parseTab((await searchParams).tab);
+  const params = await searchParams;
+  const tab = parseTab(params.tab);
   const queue = buildQueue(await orderService.listOrders(ctx), new Date());
   const counts = Object.fromEntries(TABS.map((t) => [t, queue[t].count])) as Record<
     AdminTab,
@@ -48,15 +49,12 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         <AdminTabs active={tab} counts={counts} />
         <AdminRefreshButton />
       </div>
-      {rows.length === 0 ? (
-        <EmptyState emoji="📦" title={EMPTY_TITLE[tab]} />
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {rows.map((row) => (
-            <AdminOrderRow key={row.id} row={row} />
-          ))}
-        </ul>
-      )}
+      <AdminQueueList
+        tab={tab}
+        rows={rows}
+        emptyTitle={EMPTY_TITLE[tab]}
+        urlNotice={parseNotice(params.notice, params.order)}
+      />
     </div>
   );
 }

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/features/admin/admin-guard", () => ({ requireAdmin: mocks.requireAdmin }));
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
@@ -186,6 +187,14 @@ describe("trang /admin/orders/[id] - bảng tồn kho (Story 4.5)", () => {
     expect(screen.getByRole("table", { name: "Tồn kho các món" })).toBeInTheDocument();
     expect(screen.getByTestId("stock-short")).toHaveTextContent("Không đủ hàng");
     expect(screen.getByTestId("stock-current")).toHaveTextContent("1");
+    expect(screen.getByTestId("confirm-order-button")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("đơn pending đủ hàng: nút Xác nhận đơn dùng được", async () => {
+    mocks.getRawStockFor.mockResolvedValue({ p010: 5 });
+    await renderPage();
+    const button = screen.getByRole("button", { name: "Xác nhận đơn" });
+    expect(button).not.toHaveAttribute("aria-disabled");
   });
 
   it.each<OrderStatus>(["confirmed", "shipping", "delivered", "cancelled"])(
@@ -194,6 +203,7 @@ describe("trang /admin/orders/[id] - bảng tồn kho (Story 4.5)", () => {
       mocks.getOrderForStaff.mockResolvedValue(order(status));
       await renderPage();
       expect(screen.queryByRole("table")).toBeNull();
+      expect(screen.queryByTestId("confirm-order-button")).toBeNull();
       expect(mocks.getRawStockFor).not.toHaveBeenCalled();
       expect(screen.getByRole("img", { name: "Cáp USB-C" })).toBeInTheDocument();
     },
