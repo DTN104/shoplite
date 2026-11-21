@@ -48,7 +48,7 @@ describe("chốt chặn khu vực quản trị", () => {
       const source = readFileSync(file, "utf8");
       const name = path.relative(process.cwd(), file);
       const isLogin = name === path.join("src", "app", "admin", "login", "page.tsx");
-      const guard = isLogin ? /^assertAdminEnabled\(/ : /^(await\s+)?requireAdmin\(/;
+      const guard = isLogin ? /^assertAdminEnabled\(/ : /^(const \w+ = )?(await\s+)?requireAdmin\(/;
       const heads = firstStatements(source, /export default (?:async )?function \w+/);
       return [
         ...(heads.length === 1 && guard.test(heads[0]) ? [] : [`${name}: thiếu guard ở dòng đầu`]),
