@@ -13,10 +13,30 @@ function listFiles(dir: string, match: RegExp): string[] {
     .map((file) => path.join(dir, file));
 }
 
-/** Dòng đầu tiên của thân hàm khớp `header` (đã bỏ khoảng trắng đầu dòng). */
+/** Hai dòng đầu của thân hàm khớp `header` (bỏ khoảng trắng đầu dòng, nối bằng "\n"). */
 function firstStatements(source: string, header: RegExp): string[] {
-  const pattern = new RegExp(`${header.source}\\([^)]*\\)[^{]*\\{\\s*([^\\n]+)`, "g");
-  return [...source.matchAll(pattern)].map((match) => match[1].trim());
+  const pattern = new RegExp(
+    `${header.source}\\([^)]*\\)[^{]*\\{\\s*([^\\n]+)(?:\\n\\s*([^\\n]*))?`,
+    "g",
+  );
+  return [...source.matchAll(pattern)].map((m) => `${m[1].trim()}\n${(m[2] ?? "").trim()}`);
+}
+
+const API_HANDLER = /export (?:async )?function (?:GET|POST|PUT|PATCH|DELETE)/;
+const GUARD_CALL = /^const (\w+) = await requireAdminApi\([^)]*\);\n/;
+
+/** Handler API phải gọi guard rồi trả ngay nếu kết quả là Response; login chỉ cần cổng cấu hình. */
+function apiGuardViolations(name: string, source: string, isLogin: boolean): string[] {
+  const heads = firstStatements(source, API_HANDLER);
+  if (heads.length === 0) return [`${name}: không tìm thấy handler`];
+  const ok = heads.every((head) => {
+    if (isLogin) return /^const gate = adminGate\(\);\nif \(gate\) return gate;/.test(head);
+    const match = GUARD_CALL.exec(head);
+    return (
+      match !== null && head.endsWith(`if (${match[1]} instanceof Response) return ${match[1]};`)
+    );
+  });
+  return ok ? [] : [`${name}: thiếu guard ở dòng đầu`];
 }
 
 describe("chốt chặn khu vực quản trị", () => {
@@ -41,22 +61,28 @@ describe("chốt chặn khu vực quản trị", () => {
     expect(violations).toEqual([]);
   });
 
-  it("mỗi handler /api/admin/** gọi requireAdminApi ở dòng đầu", () => {
+  it("mỗi handler /api/admin/** gọi requireAdminApi rồi trả Response nếu bị từ chối", () => {
     const routes = listFiles(path.join(SRC_DIR, "app/api/admin"), /(^|\/)route\.ts$/);
+    expect(routes.length).toBeGreaterThan(0);
 
     const violations = routes.flatMap((file) => {
       const name = path.relative(process.cwd(), file);
-      const heads = firstStatements(
-        readFileSync(file, "utf8"),
-        /export (?:async )?function (?:GET|POST|PUT|PATCH|DELETE)/,
-      );
-      if (heads.length === 0) return [`${name}: không tìm thấy handler`];
-      return heads.every((head) => /requireAdminApi\(/.test(head))
-        ? []
-        : [`${name}: thiếu guard ở dòng đầu`];
+      const isLogin = name === path.join("src", "app", "api", "admin", "login", "route.ts");
+      return apiGuardViolations(name, readFileSync(file, "utf8"), isLogin);
     });
 
     expect(violations).toEqual([]);
+  });
+
+  it("bắt handler bỏ qua kết quả requireAdminApi và nêu tên file", () => {
+    const bad =
+      "export async function POST(request: Request) {\n  await requireAdminApi(request);\n  return x;\n}";
+    const good =
+      "export async function POST(request: Request) {\n  const ctx = await requireAdminApi(request);\n  if (ctx instanceof Response) return ctx;\n}";
+    expect(apiGuardViolations("src/app/api/admin/x/route.ts", bad, false)).toEqual([
+      "src/app/api/admin/x/route.ts: thiếu guard ở dòng đầu",
+    ]);
+    expect(apiGuardViolations("x", good, false)).toEqual([]);
   });
 
   it("chỉ admin-guard.ts đọc biến mật khẩu quản trị", () => {
