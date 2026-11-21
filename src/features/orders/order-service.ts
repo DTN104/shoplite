@@ -9,6 +9,7 @@ import { findCouponByCode } from "@/features/coupons/coupon-service";
 import type { Coupon } from "@/features/coupons/types";
 import { maskOrder, type MaskedOrder } from "@/features/order-access/mask-order";
 import { verifyLookup } from "@/features/order-access/verify-lookup";
+import { clampStock, computeCurrentStocks, type StockBase } from "@/features/inventory/stock-rules";
 import type { AdminContext } from "@/features/admin/admin-guard";
 import { OrderError } from "./order-errors";
 import type { OrderRepository } from "./order-repository";
@@ -60,7 +61,7 @@ export function createOrderService({
      * Tạo đơn hàng mới từ payload của client.
      * - Validate dữ liệu bằng placeOrderSchema
      * - Lấy giá từ catalog (bỏ qua mọi giá client gửi lên)
-     * - Kiểm tra tồn kho
+     * - Kiểm tra Tồn hiện tại (Tồn gốc trừ đơn đã xác nhận) trong transaction
      * - Kiểm tra lại mã giảm giá và tự tính số tiền giảm (bỏ qua mọi số tiền client gửi lên)
      */
     async placeOrder(input: unknown): Promise<MaskedOrder> {
@@ -84,19 +85,14 @@ export function createOrderService({
         });
       }
 
+      // Tồn gốc từ catalog; Tồn hiện tại tính trong transaction từ các đơn đã ghi.
+      const stockBases: (StockBase & { name: string })[] = [];
       const orderItems: OrderItem[] = mergedItems.map(({ productId, quantity }) => {
         const product = findProduct(productId);
         if (!product) {
           throw new OrderError("PRODUCT_NOT_FOUND", `Không tìm thấy sản phẩm "${productId}"`);
         }
-        if (quantity > product.stock) {
-          throw new OrderError(
-            "INSUFFICIENT_STOCK",
-            product.stock === 0
-              ? `Sản phẩm "${product.name}" đã hết hàng`
-              : `Sản phẩm "${product.name}" chỉ còn ${product.stock} sản phẩm`,
-          );
-        }
+        stockBases.push({ id: product.id, stock: product.stock, name: product.name });
         return {
           productId: product.id,
           slug: product.slug,
@@ -112,6 +108,8 @@ export function createOrderService({
       const createdAt = now();
 
       let discount = 0;
+      // Mã sai vẫn phải đứng SAU kiểm tồn (tối đa -> tồn -> mã giảm giá) nên chỉ ném trong transaction.
+      let couponFailure: OrderError | undefined;
       if (couponCode) {
         const evaluation = evaluateCoupon(
           findCoupon(couponCode),
@@ -119,8 +117,8 @@ export function createOrderService({
           createdAt,
         );
         // Mã không hợp lệ: từ chối đơn, KHÔNG tự tạo đơn không giảm giá (FR-019)
-        if (evaluation.status === "invalid") throw toCouponOrderError(evaluation);
-        discount = evaluation.discount;
+        if (evaluation.status === "invalid") couponFailure = toCouponOrderError(evaluation);
+        else discount = evaluation.discount;
       }
 
       const draft: Omit<Order, "id"> = {
@@ -143,6 +141,23 @@ export function createOrderService({
 
       // Kiểm trùng mã và ghi nằm trong cùng transaction; trùng thì thử lại tối đa 3 lần.
       const saved = await repository.transaction(async (tx) => {
+        // Kiểm tồn nằm cùng transaction với save: giá trị thô, đơn pending không giữ kho.
+        const currentStocks = computeCurrentStocks(stockBases, await tx.findAll());
+        for (const { id, name } of stockBases) {
+          const available = clampStock(currentStocks.get(id) ?? 0);
+          const requested = mergedItems.find((item) => item.productId === id)?.quantity ?? 0;
+          if (requested > (currentStocks.get(id) ?? 0)) {
+            // Chỉ productId, không PII: nguồn đo SM-C2.
+            console.warn(JSON.stringify({ event: "insufficient_stock", productId: id }));
+            throw new OrderError(
+              "INSUFFICIENT_STOCK",
+              available === 0
+                ? `Sản phẩm "${name}" đã hết hàng`
+                : `Sản phẩm "${name}" chỉ còn ${available} sản phẩm`,
+            );
+          }
+        }
+        if (couponFailure) throw couponFailure;
         for (let attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt++) {
           const id = generateId(createdAt);
           if (await tx.findById(id)) continue;

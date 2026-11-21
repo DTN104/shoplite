@@ -42,6 +42,11 @@ test("hủy đơn đã xác nhận trả 409 với message hiện có", async ({
   for (const order of orders) if (order.id === id) order.status = "confirmed";
   await writeFile(ORDERS_FILE, JSON.stringify(orders), "utf8");
 
+  // File bị sửa từ ngoài (Story 3.2): server giữ snapshot cũ nên lần ghi đầu bị hủy (500, không ghi đè)
+  // và nạp lại file; lần sau mới thấy đơn đã xác nhận.
+  const stale = await page.request.patch(`/api/orders/${id}`, { data: { status: "cancelled" } });
+  expect(stale.status()).toBe(500);
+
   const response = await page.request.patch(`/api/orders/${id}`, { data: { status: "cancelled" } });
   expect(response.status()).toBe(409);
   expect((await response.json()).error.code).toBe("INVALID_STATUS_TRANSITION");

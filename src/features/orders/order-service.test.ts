@@ -1,9 +1,11 @@
 import type { AdminContext } from "@/features/admin/admin-guard";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getProductById } from "@/features/catalog/catalog-service";
 import { SHIPPING_OPTIONS } from "@/features/checkout/pricing";
 import { formatCurrency } from "@/lib/format";
 import { OrderError } from "./order-errors";
 import { createInMemoryOrderRepository, type OrderRepository } from "./order-repository";
+import type { Order } from "./types";
 import { createOrderService, generateOrderId, type OrderService } from "./order-service";
 
 const staff = {} as AdminContext;
@@ -345,6 +347,123 @@ describe("orderService", () => {
       await repository.save({ ...(await repository.findById(order.id))!, status: "confirmed" });
       await expectOrderError(service.cancelOrder(order.id), "INVALID_STATUS_TRANSITION");
     });
+  });
+});
+
+describe("orderService - Tồn hiện tại khi đặt hàng", () => {
+  const p010 = getProductById("p010")!;
+  const product = { ...p010, stock: 2 };
+  const seeded = (status: Order["status"], quantity: number, id = "SL-SEED"): Order => ({
+    id,
+    status,
+    createdAt: FIXED_DATE.toISOString(),
+    updatedAt: FIXED_DATE.toISOString(),
+    customer: { fullName: "Khách Cũ", phone: "0900000000", address: "1 A, B, C" },
+    shippingMethod: "standard",
+    paymentMethod: "cod",
+    items: [
+      {
+        productId: "p010",
+        slug: p010.slug,
+        name: p010.name,
+        image: p010.image,
+        unitPrice: p010.price,
+        quantity,
+        lineTotal: p010.price * quantity,
+      },
+    ],
+    subtotal: 0,
+    shippingFee: 0,
+    total: 0,
+  });
+  const make = (seed: Order[]) => {
+    let n = 0;
+    const repository = createInMemoryOrderRepository(seed);
+    return {
+      repository,
+      service: createOrderService({
+        repository,
+        findProduct: (id) => (id === "p010" ? product : getProductById(id)),
+        now: () => FIXED_DATE,
+        generateId: () => `SL-NEW-${++n}`,
+      }),
+    };
+  };
+  const order = (quantity: number, extra: Record<string, unknown> = {}) =>
+    validInput({ items: [{ productId: "p010", quantity }], ...extra });
+
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("hết hàng khi đơn confirmed đã lấy hết tồn: 409 và message hết hàng", async () => {
+    const { service, repository } = make([seeded("confirmed", 2)]);
+    const error = await expectOrderError(service.placeOrder(order(1)), "INSUFFICIENT_STOCK");
+    expect(error.message).toBe(`Sản phẩm "${product.name}" đã hết hàng`);
+    expect(error.httpStatus).toBe(409);
+    expect(await repository.findAll()).toHaveLength(1);
+  });
+
+  it("còn 1 thì message nói chỉ còn 1; đặt đúng bằng tồn thì thành công, hơn 1 thì bị từ chối", async () => {
+    const { service } = make([seeded("confirmed", 1)]);
+    const error = await expectOrderError(service.placeOrder(order(2)), "INSUFFICIENT_STOCK");
+    expect(error.message).toBe(`Sản phẩm "${product.name}" chỉ còn 1 sản phẩm`);
+    await expect(service.placeOrder(order(1))).resolves.toMatchObject({ id: "SL-NEW-1" });
+  });
+
+  it("đơn pending không giữ kho nên không chặn khách khác", async () => {
+    const { service } = make([seeded("pending", 2)]);
+    await expect(service.placeOrder(order(2))).resolves.toMatchObject({ status: "pending" });
+  });
+
+  it("đơn cancelled có điều chỉnh tồn vẫn trừ kho, không có thì hồi lại", async () => {
+    const withAdjust = {
+      ...seeded("cancelled", 2),
+      stockAdjustment: { productId: "p010", quantity: 2 },
+    };
+    const blocked = make([withAdjust]);
+    await expectOrderError(blocked.service.placeOrder(order(1)), "INSUFFICIENT_STOCK");
+    const freed = make([seeded("cancelled", 2)]);
+    await expect(freed.service.placeOrder(order(2))).resolves.toBeDefined();
+  });
+
+  it("ba yêu cầu đồng thời: hai đơn đặt 2 bị 409, đơn đặt 1 thành công (tồn 2, đã confirmed 1)", async () => {
+    const { service, repository } = make([seeded("confirmed", 1)]);
+    const results = await Promise.allSettled([
+      service.placeOrder(order(2)),
+      service.placeOrder(order(2)),
+      service.placeOrder(order(1)),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["rejected", "rejected", "fulfilled"]);
+    for (const r of results.slice(0, 2)) {
+      expect((r as PromiseRejectedResult).reason).toMatchObject({ code: "INSUFFICIENT_STOCK" });
+    }
+    expect(await repository.findAll()).toHaveLength(2);
+  });
+
+  it("ghi log insufficient_stock chỉ gồm productId, không PII", async () => {
+    const { service } = make([seeded("confirmed", 2)]);
+    await service.placeOrder(order(1)).catch(() => {});
+    const lines = vi.mocked(console.warn).mock.calls.map(([line]) => String(line));
+    expect(lines).toEqual([JSON.stringify({ event: "insufficient_stock", productId: "p010" })]);
+  });
+
+  it("thứ tự kiểm: tối đa -> tồn -> mã giảm giá; sản phẩm lạ vẫn 422", async () => {
+    const { service } = make([seeded("confirmed", 2)]);
+    await expectOrderError(service.placeOrder(order(11)), "VALIDATION_ERROR");
+    await expectOrderError(
+      service.placeOrder(order(1, { couponCode: "KHONGCO" })),
+      "INSUFFICIENT_STOCK",
+    );
+    const ok = make([]);
+    await expectOrderError(
+      ok.service.placeOrder(order(1, { couponCode: "KHONGCO" })),
+      "COUPON_NOT_FOUND",
+    );
+    await expectOrderError(
+      ok.service.placeOrder(validInput({ items: [{ productId: "khong-co", quantity: 1 }] })),
+      "PRODUCT_NOT_FOUND",
+    );
   });
 });
 

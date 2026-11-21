@@ -55,6 +55,8 @@ export interface Order {
   discount?: number;
   shippingFee: number;
   total: number;
+  /** Điều chỉnh tồn trên đơn đã hủy (Epic 5 ghi): số lượng không hồi lại kho. */
+  stockAdjustment?: { productId: string; quantity: number };
 }
 
 export type DeepReadonly<T> = T extends (infer U)[]
