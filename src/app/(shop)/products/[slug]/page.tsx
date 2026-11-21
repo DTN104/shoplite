@@ -13,32 +13,30 @@ import {
   DEFAULT_CATALOG_QUERY,
   getCategoryBySlug,
   getDiscountPercent,
-  getProductBySlug,
   getRelatedProducts,
 } from "@/features/catalog/catalog-rules";
-import { getCatalogProducts, getCategories } from "@/features/catalog/catalog-data";
+import { getCategories } from "@/features/catalog/catalog-data";
+import { inventoryService } from "@/features/inventory/server";
 import { WishlistButton } from "@/features/wishlist/components/wishlist-button";
 
-export function generateStaticParams() {
-  return getCatalogProducts().map((product) => ({ slug: product.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
 }: PageProps<"/products/[slug]">): Promise<Metadata> {
-  const product = getProductBySlug(getCatalogProducts(), (await params).slug);
+  const product = await inventoryService.getStockedProductBySlug((await params).slug);
   return product
     ? { title: product.name, description: product.shortDescription }
     : { title: "Không tìm thấy sản phẩm" };
 }
 
 export default async function ProductDetailPage({ params }: PageProps<"/products/[slug]">) {
-  const product = getProductBySlug(getCatalogProducts(), (await params).slug);
+  const product = await inventoryService.getStockedProductBySlug((await params).slug);
   if (!product) notFound();
 
   const category = getCategoryBySlug(getCategories(), product.categorySlug);
   const discount = getDiscountPercent(product);
-  const related = getRelatedProducts(getCatalogProducts(), product);
+  const related = getRelatedProducts(await inventoryService.getStockedProducts(), product);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-8">

@@ -7,12 +7,16 @@ import {
   DEFAULT_CATALOG_QUERY,
   getFeaturedProducts,
 } from "@/features/catalog/catalog-rules";
-import { getCatalogProducts, getCategories } from "@/features/catalog/catalog-data";
+import { getCategories } from "@/features/catalog/catalog-data";
+import { inventoryService } from "@/features/inventory/server";
 import { FREE_SHIPPING_THRESHOLD } from "@/features/checkout/pricing";
 import { formatCurrency } from "@/lib/format";
 
-export default function HomePage() {
-  const featured = getFeaturedProducts(getCatalogProducts(), 4);
+// Tồn hiện tại đổi theo đơn nên render theo request (Story 3.5).
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const featured = getFeaturedProducts(await inventoryService.getStockedProducts(), 4);
   const categories = getCategories();
 
   return (

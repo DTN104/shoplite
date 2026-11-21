@@ -6,7 +6,8 @@ import { CatalogFilters } from "@/features/catalog/components/catalog-filters";
 import { CategoryPills } from "@/features/catalog/components/category-pills";
 import { Pagination } from "@/features/catalog/components/pagination";
 import { ProductGrid } from "@/features/catalog/components/product-grid";
-import { getCatalogProducts, getCategories } from "@/features/catalog/catalog-data";
+import { getCategories } from "@/features/catalog/catalog-data";
+import { inventoryService } from "@/features/inventory/server";
 import {
   getCategoryBySlug,
   parseCatalogQuery,
@@ -14,11 +15,12 @@ import {
 } from "@/features/catalog/catalog-rules";
 
 export const metadata: Metadata = { title: "Sản phẩm" };
+export const dynamic = "force-dynamic";
 
 export default async function ProductsPage({ searchParams }: PageProps<"/products">) {
   const query = parseCatalogQuery(await searchParams);
   const categories = getCategories();
-  const result = queryProducts(getCatalogProducts(), categories, query);
+  const result = queryProducts(await inventoryService.getStockedProducts(), categories, query);
   const category = query.category ? getCategoryBySlug(categories, query.category) : undefined;
 
   return (

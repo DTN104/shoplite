@@ -7,16 +7,14 @@ const SRC_DIR = path.join(process.cwd(), "src");
 
 /** Nơi được import `catalog-data` (Tồn gốc). Thêm vào đây phải có chủ đích. */
 const ALLOWED = [
-  "features/inventory/inventory-service.ts",
+  "features/inventory/server.ts",
   "features/orders/order-service.ts", // findProduct
   "features/coupons/coupon-service.ts", // chỉ lấy giá
-  // Trang và API gọi trực tiếp ở server cho tới Story 3.5.
+  // Trang chỉ cần danh mục (không đọc stock); sản phẩm đi qua inventoryService.
   "app/(shop)/page.tsx",
   "app/(shop)/products/page.tsx",
   "app/(shop)/products/[slug]/page.tsx",
-  "app/(shop)/wishlist/page.tsx",
   "app/api/products/route.ts",
-  "app/api/products/[slug]/route.ts",
 ];
 
 function listFiles(dir: string): string[] {
@@ -36,6 +34,24 @@ describe("nguồn Tồn gốc", () => {
       .map((file) => path.relative(SRC_DIR, file).split(path.sep).join("/"))
       .filter((file) => file !== "features/catalog/catalog-data.ts");
     expect(found.filter((file) => !ALLOWED.includes(file))).toEqual([]);
+  });
+
+  it("trang khách và API sản phẩm render theo request, không đọc Tồn gốc trực tiếp", () => {
+    const surfaces = [
+      "app/(shop)/page.tsx",
+      "app/(shop)/products/page.tsx",
+      "app/(shop)/products/[slug]/page.tsx",
+      "app/(shop)/wishlist/page.tsx",
+      "app/api/products/route.ts",
+      "app/api/products/[slug]/route.ts",
+    ];
+    for (const file of surfaces) {
+      const source = readFileSync(path.join(SRC_DIR, file), "utf8");
+      expect(source, file).toContain('export const dynamic = "force-dynamic"');
+      expect(source, file).not.toContain("getCatalogProducts");
+      expect(source, file).not.toContain("generateStaticParams");
+      expect(source, file).not.toContain("revalidate");
+    }
   });
 
   it("catalog-rules thuần, không import @/data/*", () => {
