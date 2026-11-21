@@ -12,7 +12,7 @@ import { verifyLookup } from "@/features/order-access/verify-lookup";
 import type { AdminContext } from "@/features/admin/admin-guard";
 import { OrderError } from "./order-errors";
 import type { OrderRepository } from "./order-repository";
-import type { Order, OrderItem } from "./types";
+import type { Order, OrderItem, StoredOrder } from "./types";
 
 const MAX_ID_ATTEMPTS = 3;
 
@@ -47,7 +47,7 @@ export function createOrderService({
   now = () => new Date(),
   generateId = generateOrderId,
 }: OrderServiceDeps) {
-  async function getOrder(id: string): Promise<Order> {
+  async function getOrder(id: string): Promise<StoredOrder> {
     const order = await repository.findById(id);
     if (!order) {
       throw new OrderError("ORDER_NOT_FOUND", `Không tìm thấy đơn hàng "${id}"`);
@@ -157,13 +157,13 @@ export function createOrderService({
 
     /** Danh sách đơn đầy đủ cho nhân viên, mới nhất trước. */
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- ctx chỉ để buộc có AdminContext
-    async listOrders(_ctx: AdminContext): Promise<Order[]> {
+    async listOrders(_ctx: AdminContext): Promise<StoredOrder[]> {
       const orders = await repository.findAll();
-      return orders.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return [...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },
 
     /** Đơn đầy đủ cho nhân viên. Không có hàm tương đương cho khách: khách chỉ nhận MaskedOrder. */
-    async getOrderForStaff(_ctx: AdminContext, id: string): Promise<Order> {
+    async getOrderForStaff(_ctx: AdminContext, id: string): Promise<StoredOrder> {
       return getOrder(id);
     },
 
@@ -192,7 +192,7 @@ export function createOrderService({
             "Chỉ có thể hủy đơn hàng đang ở trạng thái Chờ xác nhận",
           );
         }
-        const next: Order = { ...order, status: "cancelled", updatedAt: now().toISOString() };
+        const next: StoredOrder = { ...order, status: "cancelled", updatedAt: now().toISOString() };
         await tx.save(next);
         return next;
       });

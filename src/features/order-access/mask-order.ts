@@ -1,4 +1,4 @@
-import type { Order } from "@/features/orders/types";
+import type { Order, StoredOrder } from "@/features/orders/types";
 import { getPhoneLast4, NO_PHONE_LAST4 } from "./phone";
 
 /** Thông tin người nhận đã che. Trường không rút được mảnh an toàn thì bỏ hẳn. */
@@ -41,7 +41,7 @@ function maskArea(address: string): string | undefined {
 }
 
 /** Cài đặt duy nhất của quy tắc che; trả object mới, không sửa đầu vào. */
-export function maskOrder(order: Order): MaskedOrder {
+export function maskOrder(order: StoredOrder): MaskedOrder {
   const { customer, ...rest } = order;
   const recipient: MaskedRecipient = {};
   const name = maskName(customer.fullName);
@@ -52,5 +52,5 @@ export function maskOrder(order: Order): MaskedOrder {
   if (phone) recipient.phone = phone;
   if (email) recipient.email = email;
   if (area) recipient.area = area;
-  return { ...rest, items: rest.items.map((item) => ({ ...item })), recipient };
+  return { ...rest, items: structuredClone(rest.items) as Order["items"], recipient };
 }

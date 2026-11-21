@@ -397,6 +397,19 @@ describe("orderService - ghi tuần tự (transaction)", () => {
   });
 });
 
+describe("orderService - snapshot bất biến", () => {
+  it("listOrders sắp xếp trên bản sao nên gọi hai lần không lỗi", async () => {
+    const repository = createInMemoryOrderRepository();
+    let n = 0;
+    const service = createOrderService({ repository, generateId: () => `SL-${++n}` });
+    await service.placeOrder(validInput());
+    await service.placeOrder(validInput());
+    const first = await service.listOrders(staff);
+    const second = await service.listOrders(staff);
+    expect(second.map((o) => o.id)).toEqual(first.map((o) => o.id));
+  });
+});
+
 describe("generateOrderId", () => {
   it("có dạng SL-YYYYMMDD-XXXXXX", () => {
     expect(generateOrderId(FIXED_DATE)).toMatch(/^SL-20261021-[0-9A-F]{6}$/);

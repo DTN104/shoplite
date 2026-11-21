@@ -56,3 +56,21 @@ export interface Order {
   shippingFee: number;
   total: number;
 }
+
+export type DeepReadonly<T> = T extends (infer U)[]
+  ? readonly DeepReadonly<U>[]
+  : T extends object
+    ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+    : T;
+
+/** Đơn lấy từ repository: snapshot dùng chung, bất biến sâu. */
+export type StoredOrder = DeepReadonly<Order>;
+
+/** Đóng băng sâu (idempotent) để không ai sửa lén snapshot dùng chung. */
+export function deepFreeze<T>(value: T): DeepReadonly<T> {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value as DeepReadonly<T>;
+}

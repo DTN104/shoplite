@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import fs from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -164,13 +164,103 @@ describe("createJsonFileOrderRepository - ghi file", () => {
     for (const t of temps) expect(t).toMatch(/orders\.json\.\d+\.[0-9a-f-]{36}\.tmp$/);
   });
 
-  it("rename lỗi thì xóa .tmp và giữ nguyên file gốc", async () => {
+  it("rename lỗi thì xóa .tmp, giữ nguyên file gốc và snapshot", async () => {
     const repository = createJsonFileOrderRepository(file);
     await repository.save(sampleOrder("SL-1"));
     const before = await readFile(file, "utf8");
     vi.spyOn(fs.promises, "rename").mockRejectedValueOnce(new Error("rename lỗi"));
     await expect(repository.save(sampleOrder("SL-2"))).rejects.toThrow("rename lỗi");
     expect(await readFile(file, "utf8")).toBe(before);
+    expect((await repository.findAll()).map((o) => o.id)).toEqual(["SL-1"]);
     expect(await readdir(dir)).toEqual(["orders.json"]);
+  });
+});
+
+describe("createJsonFileOrderRepository - snapshot dùng chung", () => {
+  let dir: string;
+  let file: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "shoplite-orders-"));
+    file = path.join(dir, "orders.json");
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("cùng đường dẫn (kể cả viết khác nhau) dùng chung một repository", () => {
+    const a = createJsonFileOrderRepository(file);
+    const b = createJsonFileOrderRepository(path.join(dir, "x", "..", "orders.json"));
+    expect(b).toBe(a);
+    expect(createJsonFileOrderRepository(path.join(dir, "khac.json"))).not.toBe(a);
+  });
+
+  it("nạp lười và chỉ đọc đĩa một lần cho nhiều lần đọc", async () => {
+    await writeFile(file, JSON.stringify([sampleOrder("SL-1")]));
+    const readSpy = vi.spyOn(fs.promises, "readFile");
+    const repository = createJsonFileOrderRepository(file);
+    expect(readSpy).not.toHaveBeenCalled();
+    await repository.findAll();
+    await repository.findById("SL-1");
+    await repository.findAll();
+    expect(readSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["JSON hỏng", '{"fullName": "Nguyễn PII-DAC-TRUNG", '],
+    ["không phải mảng", '{"phone": "0900PII-DAC-TRUNG"}'],
+  ])("file %s: ném lỗi đã làm sạch, không ghi đè", async (_label, content) => {
+    await writeFile(file, content);
+    const repository = createJsonFileOrderRepository(file);
+    const error = await repository.findAll().catch((e: unknown) => e as Error);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).not.toContain("PII-DAC-TRUNG");
+    expect((error as Error).cause).toBeUndefined();
+    await expect(repository.save(sampleOrder("SL-1"))).rejects.toThrow();
+    expect(await readFile(file, "utf8")).toBe(content);
+  });
+
+  it("file chưa có (ENOENT) coi là rỗng và được tạo khi ghi", async () => {
+    const repository = createJsonFileOrderRepository(file);
+    expect(await repository.findAll()).toEqual([]);
+    await repository.save(sampleOrder("SL-1"));
+    expect(JSON.parse(await readFile(file, "utf8"))).toHaveLength(1);
+  });
+
+  it.each([
+    ["JSON", () => createJsonFileOrderRepository(file)],
+    ["in-memory", () => createInMemoryOrderRepository()],
+  ])("%s: dữ liệu trả về bất biến sâu", async (_name, create) => {
+    const repository = create();
+    const item = { productId: "p1", quantity: 1 } as Order["items"][number];
+    await repository.save({ ...sampleOrder("SL-1"), items: [item, { ...item, productId: "p2" }] });
+    const [order] = await repository.findAll();
+    expect(() => {
+      (order as { status: string }).status = "x";
+    }).toThrow(TypeError);
+    expect(() => (order.items as unknown[]).push(1)).toThrow(TypeError);
+    expect(() => ((order.customer as { fullName: string }).fullName = "x")).toThrow(TypeError);
+    expect(() => (order.items as unknown[]).sort(() => 0)).toThrow(TypeError);
+  });
+
+  it("file bị tiến trình khác ghi lại thì hủy commit, nạp lại và không ghi đè", async () => {
+    const repository = createJsonFileOrderRepository(file);
+    await repository.save(sampleOrder("SL-1"));
+    const external = JSON.stringify([sampleOrder("SL-NGOAI"), sampleOrder("SL-NGOAI-2")]);
+    await writeFile(file, external);
+    await expect(repository.save(sampleOrder("SL-2"))).rejects.toThrow(/thay đổi từ bên ngoài/);
+    expect(await readFile(file, "utf8")).toBe(external);
+    // đã nạp lại: thấy dữ liệu ngoài, và commit kế tiếp không báo nhầm
+    expect((await repository.findAll()).map((o) => o.id)).toEqual(["SL-NGOAI", "SL-NGOAI-2"]);
+    await repository.save(sampleOrder("SL-3"));
+    await repository.save(sampleOrder("SL-4"));
+    expect((await repository.findAll()).map((o) => o.id)).toEqual([
+      "SL-NGOAI",
+      "SL-NGOAI-2",
+      "SL-3",
+      "SL-4",
+    ]);
   });
 });

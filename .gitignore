@@ -5,6 +5,7 @@ node_modules/
 .next/
 # thư mục build của server E2E thứ hai (NEXT_DIST_DIR)
 .next-e2e/
+.next-smoke/
 out/
 
 # build output
