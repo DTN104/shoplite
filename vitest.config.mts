@@ -18,6 +18,10 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.test.{ts,tsx}", "src/app/**/page.tsx", "src/app/**/layout.tsx"],
+      // Sàn coverage của gate unit (Module 7): main đo được Statements 94,38% · Branches 90,57% ·
+      // Functions 92,83% · Lines 95,24%. Sàn thấp hơn khoảng 10 điểm: chặn tụt mạnh, không đỏ vì dao động nhỏ.
+      // Không nói được tính năng mới có test hay không.
+      thresholds: { lines: 85, statements: 84, functions: 82, branches: 80 },
     },
   },
 });
