@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type KeyboardEvent } from "react";
 import { Search } from "lucide-react";
-import { MIN_QUERY_LENGTH, type Suggestion } from "@/features/catalog/suggest-service";
+import { MIN_QUERY_LENGTH, type Suggestion } from "@/features/catalog/suggest-limits";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
 
@@ -119,7 +119,14 @@ export function SearchSuggestions({ defaultValue, inputClassName }: SearchSugges
                 )}
               >
                 <span className="text-slate-900">{suggestion.name}</span>
-                <span className="shrink-0 text-slate-500">{formatCurrency(suggestion.price)}</span>
+                <span className="flex shrink-0 items-center gap-2 text-slate-500">
+                  {!suggestion.inStock && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      Hết hàng
+                    </span>
+                  )}
+                  {formatCurrency(suggestion.price)}
+                </span>
               </li>
             ))
           )}
