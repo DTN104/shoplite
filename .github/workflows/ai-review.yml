@@ -80,7 +80,6 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # 2. Token của chính workflow: chỉ có đúng quyền khai báo ở "permissions" phía trên.
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          show_full_output: true # TẠM: đọc lỗi xác thực, gỡ ngay sau đó
           # Runner tự dựng: dùng Claude Code cài sẵn trong image, không tải lại 280 MB mỗi lần review.
           path_to_claude_code_executable: ${{ vars.RUNNER_AI && '/home/runner/.local/bin/claude' || '' }}
           # 3. Có prompt thì action tự chạy mỗi khi PR mở hoặc có commit mới.
